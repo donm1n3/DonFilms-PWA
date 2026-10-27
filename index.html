@@ -756,6 +756,26 @@
   </div>
 </div>
 
+<!-- ОКНО КОНФЛИКТА ДАННЫХ -->
+<div class="modal-backdrop" id="syncConflictModal" hidden>
+  <div class="modal" style="max-width: 450px;">
+    <h3>Конфликт данных</h3>
+    <p style="font-size: 14px; color: var(--muted); line-height: 1.5;">Локальные данные и данные на GitHub отличаются. Какие данные вы хотите использовать?</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+      <button class="btn-ghost" id="syncKeepLocal" style="text-align: left; height: auto; padding: 14px; flex-direction: column; align-items: flex-start; gap: 4px;">
+        <div style="font-weight: 600; color: #fff; font-size: 14px;">Данные с этого устройства</div>
+        <div style="font-size: 12px; color: var(--muted);" id="syncLocalTime">—</div>
+      </button>
+      
+      <button class="btn-ghost" id="syncKeepRemote" style="text-align: left; height: auto; padding: 14px; flex-direction: column; align-items: flex-start; gap: 4px;">
+        <div style="font-weight: 600; color: #fff; font-size: 14px;">Данные из GitHub (облако)</div>
+        <div style="font-size: 12px; color: var(--muted);" id="syncRemoteTime">—</div>
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    КОНФИГ
@@ -846,7 +866,12 @@ const els = {
   syncSaveBtn: document.getElementById('syncSaveBtn'), syncOtherSettingsBtn: document.getElementById('syncOtherSettingsBtn'),
   syncTargetSelect: document.getElementById('syncTargetSelect'), syncCustomFields: document.getElementById('syncCustomFields'),
   syncOwnerInput: document.getElementById('syncOwnerInput'), syncRepoInput: document.getElementById('syncRepoInput'),
-  syncPathInput: document.getElementById('syncPathInput'), syncBranchInput: document.getElementById('syncBranchInput')
+  syncPathInput: document.getElementById('syncPathInput'), syncBranchInput: document.getElementById('syncBranchInput'),
+  syncConflictModal: document.getElementById('syncConflictModal'),
+  syncKeepLocal: document.getElementById('syncKeepLocal'),
+  syncKeepRemote: document.getElementById('syncKeepRemote'),
+  syncLocalTime: document.getElementById('syncLocalTime'),
+  syncRemoteTime: document.getElementById('syncRemoteTime')
 };
 
 const STATES = {
@@ -984,25 +1009,51 @@ function updateSyncUI() {
   els.syncPathInput.value = GITHUB_DATA_PATH;
   els.syncBranchInput.value = GITHUB_DATA_BRANCH;
 }
-async function pullFromGitHub() {
+
+let pendingRemoteData = null;
+
+async function pullFromGitHub(isManual = false) {
   if (!syncToken || syncBusy) return;
   syncBusy = true; syncStatus = 'syncing'; syncError = ''; updateSyncUI();
   try {
     const r = await fetch(syncApiUrl(), { headers: syncAuthHeaders(), cache: 'no-cache' });
     if (r.status === 404) { syncBusy = false; return pushToGitHub({ force: true }); }
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json(); remoteSha = data.sha;
+    
+    const data = await r.json(); 
+    remoteSha = data.sha;
     const remote = normalizeUserData(JSON.parse(fromBase64(data.content)));
-    if ((remote.updatedAt||0) > (userData.updatedAt||0)) {
+
+    const localTime = userData.updatedAt || 0;
+    const remoteTime = remote.updatedAt || 0;
+    const diff = Math.abs(localTime - remoteTime);
+
+    // Если разница во времени больше 2 секунд и локальные данные не пустые — показываем конфликт
+    if (diff > 2000 && localTime > 0 && remoteTime > 0) {
+      pendingRemoteData = remote;
+      els.syncLocalTime.textContent = 'Обновлено: ' + new Date(localTime).toLocaleString();
+      els.syncRemoteTime.textContent = 'Обновлено: ' + new Date(remoteTime).toLocaleString();
+      els.syncConflictModal.hidden = false;
+      syncStatus = 'error';
+      syncError = 'Выберите данные для синхронизации';
+      return; // Ждем выбора пользователя
+    }
+
+    // Если локальные пустые (первый запуск) — берем удаленные
+    if (localTime === 0 && remoteTime > 0) {
       userData = remote; saveUserDataToLocal(); renderHistory();
       if(!els.library.hidden) renderLibrary(); if(!els.collections.hidden) renderCollections();
-    } else if ((userData.updatedAt||0) > (remote.updatedAt||0)) {
+    } 
+    // Если на GitHub пусто, а локально есть — загружаем на GitHub
+    else if (remoteTime === 0 && localTime > 0) {
       syncBusy = false; return pushToGitHub({ force: true });
     }
+    
     syncStatus = 'ready';
   } catch (e) { syncStatus = 'error'; syncError = e.message; }
   finally { syncBusy = false; updateSyncUI(); }
 }
+
 async function pushToGitHub(opts = {}) {
   if (!syncToken) return;
   
@@ -1935,6 +1986,26 @@ els.syncTargetSelect.onchange = () => {
 
 els.syncDisableBtn.onclick = () => { if(!confirm('Отключить?')) return; syncToken=null; localStorage.removeItem(SYNC_TOKEN_KEY); syncStatus='off'; updateSyncUI(); els.syncModal.hidden=true; };
 els.syncNowBtn.onclick = () => pullFromGitHub();
+
+els.syncKeepLocal.onclick = async () => {
+  els.syncConflictModal.hidden = true;
+  pendingRemoteData = null;
+  syncStatus = 'syncing'; updateSyncUI();
+  await pushToGitHub({ force: true });
+};
+
+els.syncKeepRemote.onclick = () => {
+  if (!pendingRemoteData) return;
+  userData = pendingRemoteData;
+  saveUserDataToLocal();
+  els.syncConflictModal.hidden = true;
+  pendingRemoteData = null;
+  syncStatus = 'ready'; updateSyncUI();
+  renderHistory();
+  if(!els.library.hidden) renderLibrary();
+  if(!els.collections.hidden) renderCollections();
+  if(!els.catalog.hidden) renderCatalog();
+};
 
 els.historyExport.onclick = () => {
   const b = new Blob([JSON.stringify(userData, null, 2)], {type:'application/json'});
