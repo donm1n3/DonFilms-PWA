@@ -1,0 +1,1940 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DonFilms — локальная кинотека</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#08080b" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<style>
+  :root {
+    --bg: #08080b; --panel: rgba(255,255,255,.045); --border: rgba(255,255,255,.09);
+    --border-strong: rgba(255,255,255,.18); --text: #f5f5f7; --muted: #8a8a92;
+    --accent: #ff375f; --accent-2: #ff7a45; --gold: #ffb800;
+    --green: #7ee787; --red: #ff8a80; --blue: #9ab7ff;
+    --heat-0: #101015;
+    --heat-1: #4a151f;
+    --heat-2: #8a1c32;
+    --heat-3: #ff375f;
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text);
+    background:
+      radial-gradient(900px 520px at 50% -15%, rgba(255,55,95,.10), transparent 65%),
+      radial-gradient(700px 420px at 100% 0%, rgba(90,140,255,.06), transparent 65%),
+      var(--bg);
+    font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+  }
+  ::selection { background: rgba(255,55,95,.45); }
+  .shell { width: 100%; max-width: 1000px; margin: 0 auto; padding: 28px 24px 48px;
+    position: relative; z-index: 1; }
+
+  #autumnLayer { position: fixed; inset: 0; pointer-events: none; overflow: hidden;
+    z-index: 0; display: none; }
+  body.autumn-mode #autumnLayer { display: block; }
+  .autumn-item {
+    position: absolute; top: -60px; will-change: transform; user-select: none;
+    animation-name: autumnFall; animation-timing-function: linear; animation-iteration-count: infinite;
+  }
+  @keyframes autumnFall {
+    0%   { transform: translate3d(0, -60px, 0) rotate(0deg); }
+    50%  { transform: translate3d(var(--sway, 0px), 55vh, 0) rotate(180deg); }
+    100% { transform: translate3d(calc(var(--sway, 0px) * -1), 105vh, 0) rotate(360deg); }
+  }
+
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; margin-bottom: 36px; border: 1px solid var(--border);
+    border-radius: 16px; background: rgba(15,15,20,.55);
+    backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35); position: relative;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px; padding: 4px 8px 4px 4px; margin: -4px;
+    border: 0; border-radius: 10px; background: none; color: inherit; font: inherit;
+    cursor: pointer; transition: background .2s var(--ease); flex-shrink: 0;
+  }
+  .brand:hover { background: rgba(255,255,255,.05); }
+  .brand-mark {
+    position: relative; width: 30px; height: 30px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 6px 18px rgba(255,55,95,.45), inset 0 1px 0 rgba(255,255,255,.35);
+    flex: 0 0 auto;
+  }
+  .brand-mark::after {
+    content: ""; position: absolute; inset: 0; margin: auto; width: 0; height: 0;
+    border-left: 8px solid #fff; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    transform: translateX(1px);
+  }
+  .brand-name { font-size: 15px; font-weight: 700; letter-spacing: .16em; }
+  .topbar-actions { display: flex; gap: 6px; flex-wrap: nowrap; }
+  .brand-tag { margin-left: auto; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  .autumn-btn, .sync-btn {
+    flex-shrink: 0; width: 38px; height: 38px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border-strong); border-radius: 10px;
+    background: rgba(255,255,255,.04); color: var(--text); font-size: 18px;
+    cursor: pointer; transition: all .25s var(--ease);
+  }
+  .autumn-btn:hover, .sync-btn:hover { background: rgba(255,255,255,.1); transform: translateY(-1px); }
+  .autumn-btn.is-active {
+    background: linear-gradient(135deg, #ff9944, #d4541a);
+    border-color: transparent; box-shadow: 0 6px 20px rgba(255,153,68,.45);
+  }
+  .sync-btn svg { width: 18px; height: 18px; }
+  .sync-btn.is-ready { color: var(--green); border-color: rgba(126,231,135,.4); background: rgba(126,231,135,.08); }
+  .sync-btn.is-syncing { color: #ffb84d; border-color: rgba(255,184,77,.4); background: rgba(255,184,77,.08); }
+  .sync-btn.is-syncing svg { animation: spin 1.2s linear infinite; }
+  .sync-btn.is-error { color: var(--red); border-color: rgba(255,120,100,.45); background: rgba(255,120,100,.1); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn {
+    height: 58px; padding: 0 30px; border: 0; border-radius: 16px; font: inherit;
+    font-size: 15px; font-weight: 600; letter-spacing: .02em; color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 10px 24px rgba(255,55,95,.30), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease), filter .2s var(--ease);
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(255,55,95,.42), inset 0 1px 0 rgba(255,255,255,.25); }
+  .btn:active:not(:disabled) { transform: translateY(0) scale(.985); }
+  .btn:disabled { filter: grayscale(.45) brightness(.7); cursor: not-allowed; }
+
+  .btn-ghost {
+    height: 44px; padding: 0 22px; border: 1px solid var(--border-strong); border-radius: 12px;
+    font: inherit; font-size: 13.5px; font-weight: 500; letter-spacing: .02em; color: var(--text);
+    background: rgba(255,255,255,.04); cursor: pointer;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: background .2s var(--ease), border-color .2s var(--ease), transform .15s var(--ease), color .2s var(--ease);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.3); transform: translateY(-1px); }
+  .btn-ghost:active { transform: translateY(0) scale(.99); }
+  .btn-ghost--danger:hover { background: rgba(255,55,95,.12); border-color: rgba(255,55,95,.4); color: #ff8aa3; }
+  .btn-ghost:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-nav { height: 38px; padding: 0 14px; font-size: 12.5px; border-radius: 10px; flex-shrink: 0; }
+  .btn-tiny { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+
+  .search { display: flex; gap: 12px; margin-bottom: 22px; }
+  .search-field {
+    flex: 1; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 18px;
+    border: 1px solid var(--border); border-radius: 16px; background: var(--panel);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transition: border-color .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease);
+  }
+  .search-field:focus-within {
+    border-color: rgba(255,55,95,.55); background: rgba(255,255,255,.06);
+    box-shadow: 0 0 0 4px rgba(255,55,95,.12), 0 12px 30px rgba(0,0,0,.35);
+  }
+  .search-icon { width: 18px; height: 18px; color: var(--muted); flex: 0 0 auto; }
+  .search input {
+    flex: 1; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text);
+    font: inherit; font-size: 16px; letter-spacing: .01em;
+  }
+  .search input::placeholder { color: #5c5c66; }
+
+  .player {
+    position: relative; aspect-ratio: 16/9; border: 1px solid var(--border); border-radius: 22px;
+    overflow: hidden; background: #0b0b10; box-shadow: 0 40px 80px -24px rgba(0,0,0,.9);
+    z-index: 1;
+  }
+  .state {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 32px; text-align: center;
+    background: radial-gradient(120% 120% at 50% 0%, #17171f 0%, #0c0c11 55%, #08080c 100%);
+    animation: fade .4s var(--ease);
+  }
+  @keyframes fade { from { opacity: 0; transform: scale(.995); } to { opacity: 1; transform: none; } }
+  .state--results {
+    justify-content: flex-start;
+    padding: 28px 32px;
+    overflow-y: auto;
+    overflow-x: hidden;         /* горизонтальный скролл не нужен */
+    scrollbar-gutter: stable;   /* ← место под скроллбар резервируется всегда */
+  }
+  .state--results h2 { margin-bottom: 2px; }
+
+  #activityBtn { position: absolute; top: 24px; left: 24px; z-index: 10; }
+
+  .badge {
+    display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%;
+    border: 1px solid var(--border-strong); background: rgba(255,255,255,.05);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 18px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12);
+    transition: transform .35s var(--ease);
+  }
+  .badge--play { color: #fff; }
+  .badge--error { color: var(--accent); border-color: rgba(255,55,95,.32); background: rgba(255,55,95,.08); }
+  .state:hover .badge--play { transform: scale(1.06); }
+  .state h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+  .state p { margin: 0; max-width: 420px; font-size: 14px; line-height: 1.6; color: var(--muted); }
+
+  .spinner {
+    width: 54px; height: 54px; border-radius: 50%;
+    background: conic-gradient(from 90deg, transparent 0 30%, var(--accent) 72%, var(--accent-2));
+    -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - 4px), #000 calc(100% - 3.5px));
+            mask: radial-gradient(farthest-side, #0000 calc(100% - 4px), #000 calc(100% - 3.5px));
+    filter: drop-shadow(0 0 14px rgba(255,55,95,.35)); animation: spin .9s linear infinite;
+  }
+  .player-frame {
+    position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000;
+    animation: fade .4s var(--ease);
+  }
+
+  .results-list { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 560px; margin-top: 4px; }
+  .result-item {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 14px 18px; border: 1px solid var(--border); border-radius: 12px;
+    background: rgba(255,255,255,.03); color: var(--text); font: inherit;
+    font-size: 14.5px; font-weight: 500; letter-spacing: .01em; text-align: left; cursor: pointer;
+    transition: background .2s var(--ease), border-color .2s var(--ease), transform .15s var(--ease), box-shadow .2s var(--ease);
+  }
+  .result-item:hover {
+    background: rgba(255,55,95,.10); border-color: rgba(255,55,95,.38);
+    transform: translateY(-1px); box-shadow: 0 8px 22px rgba(255,55,95,.18);
+  }
+  .result-item:active { transform: translateY(0) scale(.995); }
+  .result-item.is-dragging { opacity: .35; cursor: grabbing; }
+  .result-item.is-drag-over { border-color: rgba(255,55,95,.7); background: rgba(255,55,95,.14); box-shadow: 0 0 0 2px rgba(255,55,95,.18); }
+  .drag-handle { flex: 0 0 auto; display: grid; place-items: center; width: 18px; height: 26px; color: var(--muted); cursor: grab; user-select: none; transition: color .15s var(--ease); }
+  .drag-handle:hover { color: var(--text); }
+
+  .result-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-year { font-size: 12px; color: var(--muted); flex-shrink: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+  
+  .history-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .history-title-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .history-title { font-size: 14.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-time { font-size: 11.5px; letter-spacing: .04em; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .history-empty { margin: 6px 0 2px; font-size: 14px; color: var(--muted); }
+  .state p.collection-empty {
+    margin: 0 auto;
+    max-width: none;
+    padding: 40px 20px;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .result-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+  .result-arrow { color: var(--muted); font-size: 12px; transition: color .2s var(--ease), transform .2s var(--ease); }
+  .result-item:hover .result-arrow { color: var(--accent); transform: translateX(2px); }
+
+  .result-badge {
+    padding: 3px 8px; border-radius: 6px; font-size: 10px;
+    font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    background: rgba(255,255,255,.06); color: var(--muted); white-space: nowrap;
+  }
+  .result-item[data-type="series"] .result-badge { background: rgba(90,140,255,.15); color: #9ab7ff; }
+  .status-badge {
+    padding: 3px 8px; border-radius: 6px; font-size: 10px;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+  }
+  .status-badge--abandoned { background: rgba(255,120,100,.15); color: var(--red); }
+  .rating-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 6px; white-space: nowrap;
+    background: rgba(255,184,0,.14); color: var(--gold);
+    font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  }
+
+  .icon-btn {
+    width: 28px; height: 28px; display: grid; place-items: center;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: rgba(255,255,255,.04); color: var(--muted);
+    font: inherit; font-size: 12px; cursor: pointer;
+    transition: all .15s var(--ease);
+  }
+  .icon-btn:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: var(--border-strong); }
+  .icon-btn--danger:hover { background: rgba(255,55,95,.15); color: #ff8aa3; border-color: rgba(255,55,95,.4); }
+
+  .donut { width: 40px; height: 40px; flex: 0 0 auto; }
+  .donut-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 4; }
+  .donut-fill { fill: none; stroke: url(#donutGrad); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray .4s var(--ease); }
+  .donut-text { font-size: 9px; font-weight: 700; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; margin-top: 4px; justify-content: center; }
+  .filter-btn {
+    height: 30px; padding: 0 14px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: rgba(255,255,255,.04); color: var(--muted);
+    font: inherit; font-size: 12px; font-weight: 500; letter-spacing: .02em;
+    cursor: pointer; white-space: nowrap; transition: all .2s var(--ease);
+  }
+  .filter-btn:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: rgba(255,255,255,.3); }
+  .filter-btn.is-active {
+    background: rgba(255,55,95,.18); border-color: rgba(255,55,95,.55); color: #fff;
+    box-shadow: 0 0 0 3px rgba(255,55,95,.1);
+  }
+
+  .collection-search {
+    width: 100%; max-width: 560px; height: 46px; padding: 0 16px;
+    margin: 4px 0 8px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: rgba(12,12,17,.86); color: var(--text);
+    font: inherit; font-size: 14px; outline: none;
+    transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  .collection-search:focus {
+    border-color: rgba(255,55,95,.5); background: rgba(20,20,28,.95);
+    box-shadow: 0 0 0 3px rgba(255,55,95,.12);
+  }
+  .collection-search::placeholder { color: #5c5c66; }
+
+  .caption {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 18px; padding: 0 4px; animation: fade .4s var(--ease);
+    flex-wrap: wrap;
+  }
+  .caption-left { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .caption-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .caption-year {
+    font-size: 14px; color: var(--muted); flex-shrink: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .status-wrap { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; }
+  .status-actions { display: flex; align-items: center; gap: 6px; }
+  .status-btn {
+    height: 30px; padding: 0 12px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: rgba(255,255,255,.04); color: var(--muted);
+    font: inherit; font-size: 11.5px; font-weight: 500; letter-spacing: .02em;
+    cursor: pointer; white-space: nowrap; transition: all .2s var(--ease);
+    position: relative;
+  }
+  .status-btn:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: rgba(255,255,255,.3); }
+  .status-btn.is-active[data-status="watched"]   { background: rgba(126,231,135,.18); border-color: rgba(126,231,135,.5); color: var(--green); }
+  .status-btn.is-active[data-status="abandoned"] { background: rgba(255,120,100,.15); border-color: rgba(255,120,100,.45); color: var(--red); }
+  .status-btn.is-active[data-status="planned"]   { background: rgba(90,140,255,.15); border-color: rgba(90,140,255,.45); color: var(--blue); }
+
+  .counter-wrap { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,.2); overflow: hidden; height: 30px; }
+  .counter-btn { width: 20px; height: 100%; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 10px; display: grid; place-items: center; transition: background .15s; }
+  .counter-btn:hover { background: rgba(255,255,255,.1); color: var(--text); }
+  .counter-val { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--text); min-width: 16px; text-align: center; font-family: ui-monospace, monospace; }
+
+  .cycle-toggle { display: flex; align-items: center; gap: 4px; }
+  .cycle-btn { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .cycle-btn:hover { color: var(--text); }
+  .cycle-val { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+
+  .rating { display: inline-flex; align-items: center; gap: 10px; user-select: none; flex: 0 0 auto; }
+  .stars { display: inline-flex; gap: 4px; }
+  .star {
+    --star-size: 26px; position: relative; display: inline-block;
+    width: var(--star-size); height: var(--star-size);
+    cursor: pointer; transition: transform .15s var(--ease);
+  }
+  .star:hover { transform: scale(1.08); }
+  .star-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .star-bg path { fill: rgba(255,255,255,.06); stroke: rgba(255,255,255,.25); stroke-width: 1.2; stroke-linejoin: round; }
+  .star-fill { position: absolute; top: 0; left: 0; bottom: 0; overflow: hidden; pointer-events: none; }
+  .star-fill svg { display: block; width: var(--star-size); height: var(--star-size); }
+  .star-fill svg path { fill: var(--gold); stroke: var(--gold); stroke-width: 1.2; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(255,184,0,.35)); }
+  .rating-value { font-size: 13px; font-weight: 600; color: var(--gold); letter-spacing: .02em; min-width: 34px; }
+
+  .series-nav {
+    margin-top: 22px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 18px;
+    background: rgba(255,255,255,.025);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    animation: fade .4s var(--ease); position: relative; z-index: 1;
+  }
+  .series-nav-label { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .series-nav-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .series-nav-label-row .series-nav-label { margin-bottom: 0; }
+  .season-toggle-btn {
+    height: 26px; padding: 0 10px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: rgba(255,255,255,.04); color: var(--muted);
+    font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .02em;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .2s var(--ease);
+  }
+  .season-toggle-btn:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: rgba(255,255,255,.3); }
+  .season-toggle-btn.is-active { background: rgba(126,231,135,.15); border-color: rgba(126,231,135,.45); color: var(--green); }
+  .seasons-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .season-btn {
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px;
+    background: rgba(255,255,255,.03); color: var(--muted); font: inherit;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s var(--ease);
+  }
+  .season-btn:hover { color: var(--text); border-color: var(--border-strong); background: rgba(255,255,255,.06); }
+  .season-btn.is-active { color: #fff; border-color: rgba(255,55,95,.55); background: rgba(255,55,95,.15); box-shadow: 0 0 0 3px rgba(255,55,95,.08); }
+  .episodes-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+  .ep-btn {
+    height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 10px;
+    background: rgba(255,255,255,.03); color: var(--text); font: inherit;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s var(--ease);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .ep-btn:hover { border-color: var(--border-strong); background: rgba(255,255,255,.07); }
+  .ep-btn.is-watched {
+    color: #0a0a0e; background: linear-gradient(135deg, #7ee787, #a4f5b2);
+    border-color: transparent; font-weight: 700; box-shadow: 0 4px 12px rgba(126,231,135,.25);
+  }
+  .ep-btn.is-watched:hover { background: linear-gradient(135deg, #9ff0aa, #b8ffc2); }
+
+  .extras {
+    margin-top: 30px;      /* было 120px — линия поднимется на 90px */
+    display: flex; flex-direction: column; gap: 12px;
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border); 
+    padding-top: 40px;    /* было 24px — компенсирует, блоки остаются там же */
+  }
+  .extra-block { border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.025); padding: 14px 16px; }
+  .extra-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .extra-title { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .extra-body { margin-top: 10px; font-size: 14px; line-height: 1.55; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .extra-editor { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .extra-editor textarea {
+    width: 100%; min-height: 80px; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: rgba(0,0,0,.35); color: var(--text);
+    font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; outline: none;
+    transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .extra-editor textarea:focus { border-color: rgba(255,55,95,.5); box-shadow: 0 0 0 3px rgba(255,55,95,.1); }
+  .editor-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+  .dict-line { font-size: 14px; line-height: 1.7; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,.06); }
+  .dict-line:last-child { border-bottom: 0; }
+  .dict-word { font-weight: 600; color: var(--text); }
+  .dict-dash { color: var(--muted); margin: 0 4px; }
+  .dict-trans { color: var(--blue); }
+
+  /* Date Tooltip */
+  .date-tooltip {
+    position: absolute; background: #17171f; border: 1px solid var(--border-strong);
+    padding: 12px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.8);
+    z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+    width: 240px; font-size: 12px;
+  }
+  .date-tooltip-view { display: flex; justify-content: space-between; align-items: center; }
+  .date-tooltip-val { font-weight: 600; font-family: monospace; }
+  .date-tooltip-edit { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .date-tooltip input { width: 100%; height: 30px; background: #0a0a0e; border: 1px solid var(--border); color: #fff; padding: 0 8px; border-radius: 6px; font-family: monospace; }
+  .date-tooltip-actions { display: flex; gap: 4px; justify-content: flex-end; }
+  .btn-tiny-tt { padding: 4px 8px; font-size: 11px; border-radius: 4px; border: 0; background: rgba(255,255,255,.1); color: #fff; cursor: pointer; }
+  .btn-tiny-tt:hover { background: rgba(255,255,255,.2); }
+
+  /* Activity Heatmap */
+  .activity-container { width: 100%; display: flex; flex-direction: column; align-items: center; overflow-x: auto; padding-bottom: 10px; }
+  .heatmap-wrap { display: flex; gap: 8px; align-items: flex-start; }
+  .heatmap-days-labels { display: flex; flex-direction: column; justify-content: space-between; height: 82px; font-size: 9px; color: var(--muted); text-align: right; width: 16px; }
+  .heatmap-months { display: flex; gap: 2px; height: 14px; margin-bottom: 4px; overflow: hidden; }
+  .heatmap-month-label { width: 10px; flex-shrink: 0; font-size: 9px; color: var(--muted); white-space: nowrap; overflow: visible; }
+  .heatmap-grid { display: grid; grid-template-rows: repeat(7, 10px); grid-auto-flow: column; grid-auto-columns: 10px; gap: 2px; min-width: max-content; }
+  .heatmap-cell {
+    width: 10px; height: 10px; border-radius: 2px; background: var(--heat-0); transition: transform .1s; cursor: default;
+  }
+  .heatmap-cell:hover { transform: scale(1.4); border-radius: 3px; z-index: 10; outline: 1px solid #fff; }
+  .heatmap-cell[data-lvl="1"] { background: var(--heat-1); }
+  .heatmap-cell[data-lvl="2"] { background: var(--heat-2); }
+  .heatmap-cell[data-lvl="3"] { background: var(--heat-3); box-shadow: 0 0 4px var(--heat-3); }
+
+  .hint { margin: 28px 0 0; text-align: center; font-size: 12.5px; letter-spacing: .02em; color: #5c5c66; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.72);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: grid; place-items: center; padding: 20px; z-index: 10000;
+    animation: fade .25s var(--ease);
+  }
+  .modal {
+    width: 100%; max-width: 500px; background: linear-gradient(180deg, #17171f 0%, #0e0e13 100%);
+    border: 1px solid var(--border-strong); border-radius: 20px;
+    padding: 26px 24px 22px; box-shadow: 0 40px 80px rgba(0,0,0,.8);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .modal h3 { margin: 0; font-size: 17px; font-weight: 600; }
+  .modal input[type="password"], .modal input[type="text"] {
+    width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px;
+    background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none;
+  }
+  .modal-status { font-size: 12.5px; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,.025); }
+  .modal-status[data-kind="ready"] { color: var(--green); }
+  .modal-status[data-kind="error"] { color: var(--red); }
+  .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
+
+  @media (max-width: 640px) {
+    .shell { padding: 18px 16px 36px; }
+    .topbar { flex-wrap: wrap; }
+    .topbar-actions { width: 100%; justify-content: space-between; order: 3; }
+    .btn-nav { flex: 1; height: 34px; padding: 0 6px; font-size: 11.5px; }
+    .result-item { padding: 12px 14px; font-size: 13.5px; gap: 8px; flex-wrap: wrap; }
+    .caption { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .status-wrap { width: 100%; justify-content: space-between; }
+    .extras { margin-top: 20px; }
+    #activityBtn { position: static; margin-bottom: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="donutGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff375f"/>
+      <stop offset="100%" stop-color="#ff7a45"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="autumnLayer" aria-hidden="true"></div>
+
+<main class="shell">
+  <header class="topbar">
+    <button class="brand" id="brandBtn" type="button" title="На главную">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">DONFILMS</span>
+    </button>
+    <nav class="topbar-actions">
+      <button class="btn-ghost btn-nav" id="historyBtn" type="button">История</button>
+      <button class="btn-ghost btn-nav" id="libraryBtn" type="button">Библиотека</button>
+      <button class="btn-ghost btn-nav" id="collectionsBtn" type="button">Сборники</button>
+      <button class="btn-ghost btn-nav" id="catalogBtn" type="button">Каталог</button>
+    </nav>
+    <span class="brand-tag">локальная кинотека</span>
+    <button class="autumn-btn" id="autumnBtn" type="button" title="Осенний режим">🍁</button>
+    <button class="sync-btn" id="syncBtn" type="button" title="Синхронизация с GitHub">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 0 1-15.5 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.4L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/>
+      </svg>
+    </button>
+  </header>
+
+  <form class="search" id="searchForm" autocomplete="off">
+    <label class="search-field">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <input id="queryInput" type="text" placeholder="Фильм, сериал или год — например, 2008" spellcheck="false" autofocus />
+    </label>
+    <button class="btn" id="submitBtn" type="submit">Смотреть</button>
+  </form>
+
+  <section class="player" aria-label="Плеер">
+    <div class="state" id="stateIdle">
+      <div class="badge badge--play">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true">
+          <path d="M8 5.14v13.72c0 .8.87 1.3 1.55.89l10.9-6.86a1.04 1.04 0 0 0 0-1.78L9.55 4.25A1.04 1.04 0 0 0 8 5.14Z"/>
+        </svg>
+      </div>
+      <h2>Готово к просмотру</h2>
+      <p>Введите название фильма, сериала или год.</p>
+    </div>
+    <div class="state" id="stateLoading" hidden>
+      <div class="spinner" aria-hidden="true"></div><h2>Загружаем…</h2>
+    </div>
+    <div class="state" id="stateError" hidden>
+      <div class="badge badge--error">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5"></path></svg>
+      </div>
+      <h2>Ничего не найдено</h2><p id="errorText"></p>
+    </div>
+    <div class="state state--results" id="stateResults" hidden>
+      <h2>Найдено несколько вариантов</h2><p>Выберите нужный.</p>
+      <div class="results-list" id="resultsList"></div>
+    </div>
+
+    <div class="state state--results" id="stateHistory" hidden>
+      <h2>История просмотра</h2>
+      <p class="history-empty" id="historyEmpty">Вы пока ничего не смотрели.</p>
+      <div class="results-list" id="historyList"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="historyBackBtn" type="button">Назад</button>
+        <button class="btn-ghost" id="historyImportBtn" type="button">Импорт</button>
+        <button class="btn-ghost" id="historyExportBtn" type="button">Экспорт</button>
+        <button class="btn-ghost btn-ghost--danger" id="historyClearBtn" type="button">Очистить</button>
+      </div>
+    </div>
+
+    <div class="state state--results" id="stateLibrary" hidden>
+      <button class="btn-ghost btn-tiny" id="activityBtn" type="button">📊 Активность</button>
+      <h2 style="margin-top: 10px;">Библиотека</h2>
+      <div class="filter-row">
+        <button class="filter-btn" id="libraryYearBtn" type="button">Скрыть год</button>
+        <button class="filter-btn" id="libraryCountBtn" type="button">Скрыть кол-во</button>
+      </div>
+      <p class="history-empty" id="libraryEmpty">Библиотека пуста.</p>
+      <div class="results-list" id="libraryList"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="libraryBackBtn" type="button">Назад</button>
+      </div>
+    </div>
+
+    <div class="state state--results" id="stateActivity" hidden>
+      <h2>Активность</h2>
+      <p>Наведите на квадратик, чтобы увидеть детали.</p>
+      <div class="activity-container" style="margin-top:20px;">
+        <div class="heatmap-wrap">
+          <div style="display:flex; flex-direction:column;">
+            <div style="height:14px; margin-bottom:4px;"></div>
+            <div class="heatmap-days-labels">
+              <div>Пн</div><div>Ср</div><div>Пт</div>
+            </div>
+          </div>
+          <div>
+            <div class="heatmap-months" id="heatmapMonths"></div>
+            <div class="heatmap-grid" id="heatmapGrid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn-ghost" id="activityBackBtn" type="button">Назад</button>
+      </div>
+    </div>
+
+    <div class="state state--results" id="stateCollections" hidden>
+      <h2>Сборники</h2>
+      <p class="history-empty" id="collectionsEmpty">Пока нет сборников.</p>
+      <div class="results-list" id="collectionsList"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="collectionsBackBtn" type="button">Назад</button>
+        <button class="btn-ghost" id="collectionsCreateBtn" type="button">Создать сборник</button>
+      </div>
+    </div>
+
+    <div class="state state--results" id="stateCollectionDetail" hidden>
+      <h2 id="collectionDetailTitle"></h2>
+      <div class="filter-row">
+        <button class="filter-btn" id="collectionYearBtn" type="button">Скрыть год</button>
+        <button class="filter-btn" id="collectionCountBtn" type="button">Скрыть кол-во</button>
+      </div>
+      <input id="collectionSearch" class="collection-search" type="text" placeholder="Поиск для добавления…" spellcheck="false" hidden />
+      <div class="results-list" id="collectionItemsList"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="collectionDetailBackBtn" type="button">Назад</button>
+        <button class="btn-ghost" id="collectionAddBtn" type="button">Добавить</button>
+        <button class="btn-ghost btn-ghost--danger" id="collectionDeleteBtn" type="button">Удалить сборник</button>
+      </div>
+    </div>
+
+    <div class="state state--results" id="stateCatalog" hidden>
+      <h2>Каталог</h2>
+      <div class="filter-row">
+        <button class="filter-btn" id="catalogFilterBtn" type="button">Скрыть отмеченные</button>
+        <button class="filter-btn" id="catalogYearBtn" type="button">Скрыть год</button>
+        <button class="filter-btn" id="catalogSortBtn" type="button">Оценка ↓</button>
+      </div>
+      <p class="history-empty" id="catalogEmpty" hidden>База пуста.</p>
+      <div class="results-list" id="catalogList"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="catalogBackBtn" type="button">Назад</button>
+      </div>
+    </div>
+
+    <iframe id="playerFrame" class="player-frame" title="Видеоплеер" frameborder="0" referrerpolicy="no-referrer" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen hidden></iframe>
+  </section>
+
+  <div class="caption" id="caption" hidden>
+    <div class="caption-left">
+      <span class="caption-title" id="captionTitle"></span>
+      <span class="caption-year" id="captionYear" hidden></span>
+    </div>
+    <div class="status-wrap" id="statusWrap">
+      <div class="cycle-toggle" id="cycleToggle" hidden>
+        <button class="cycle-btn" id="cyclePrev">❮</button>
+        <span class="cycle-val" id="cycleVal">1</span>
+        <button class="cycle-btn" id="cycleNext">❯</button>
+      </div>
+      <div class="status-actions" id="statusActions" hidden></div>
+      <div class="counter-wrap" id="counterWrap" hidden>
+        <button class="counter-btn" id="countUp">▲</button>
+        <span class="counter-val" id="countVal">1</span>
+        <button class="counter-btn" id="countDown">▼</button>
+      </div>
+    </div>
+    <div class="rating" id="rating" hidden>
+      <div class="stars" id="stars"></div>
+      <span class="rating-value" id="ratingValue">—</span>
+    </div>
+  </div>
+
+  <div class="series-nav" id="seriesNav" hidden>
+    <div class="series-nav-label">Сезон</div>
+    <div class="seasons-row" id="seasonsRow"></div>
+    <div class="series-nav-label-row">
+      <div class="series-nav-label">Серии</div>
+      <button class="season-toggle-btn" id="seasonToggleBtn" type="button">Выделить весь сезон</button>
+    </div>
+    <div class="episodes-row" id="episodesRow"></div>
+  </div>
+
+  <div class="extras" id="extras" hidden>
+    <div class="extra-block">
+      <div class="extra-header">
+        <span class="extra-title">Заметка</span>
+        <button class="btn-ghost btn-tiny" id="noteEditBtn" type="button">Добавить</button>
+      </div>
+      <div class="extra-body" id="noteBody" hidden></div>
+      <div class="extra-editor" id="noteEditor" hidden>
+        <textarea id="noteTextarea" rows="4" placeholder="Ваша заметка..."></textarea>
+        <div class="editor-actions">
+          <button class="btn-ghost btn-tiny" id="noteCancelBtn" type="button">Отмена</button>
+          <button class="btn-ghost btn-tiny" id="noteSaveBtn" type="button">Сохранить</button>
+        </div>
+      </div>
+    </div>
+    <div class="extra-block">
+      <div class="extra-header">
+        <span class="extra-title">Словарь</span>
+        <button class="btn-ghost btn-tiny" id="dictEditBtn" type="button">Добавить</button>
+      </div>
+      <div class="extra-body" id="dictBody" hidden></div>
+      <div class="extra-editor" id="dictEditor" hidden>
+        <textarea id="dictTextarea" rows="5" placeholder="hello — привет"></textarea>
+        <div class="editor-actions">
+          <button class="btn-ghost btn-tiny" id="dictTranslateBtn" type="button">Автоперевод</button>
+          <button class="btn-ghost btn-tiny" id="dictCancelBtn" type="button">Отмена</button>
+          <button class="btn-ghost btn-tiny" id="dictSaveBtn" type="button">Сохранить</button>
+        </div>
+      </div>
+    </div>
+    <div class="extra-block">
+      <div class="extra-header">
+        <span class="extra-title">Отзыв</span>
+        <button class="btn-ghost btn-tiny" id="reviewEditBtn" type="button">Добавить</button>
+      </div>
+      <div class="extra-body" id="reviewBody" hidden></div>
+      <div class="extra-editor" id="reviewEditor" hidden>
+        <textarea id="reviewTextarea" rows="4" placeholder="Ваш отзыв..."></textarea>
+        <div class="editor-actions">
+          <button class="btn-ghost btn-tiny" id="reviewCancelBtn" type="button">Отмена</button>
+          <button class="btn-ghost btn-tiny" id="reviewSaveBtn" type="button">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">Данные из GitHub · История, оценки, сборники, даты в donfilms-user.json</p>
+</main>
+
+<input type="file" id="importFile" accept="application/json,.json" hidden />
+
+<div class="modal-backdrop" id="syncModal" hidden>
+  <div class="modal">
+    <h3>Синхронизация</h3>
+    <input id="syncTokenInput" type="password" placeholder="github_pat_..." />
+    <div class="modal-status" id="syncModalStatus" data-kind="idle">Выключена.</div>
+    <div class="modal-actions">
+      <div style="flex: 1; display: flex; justify-content: center; min-width: 140px;">
+        <button class="btn-ghost" id="syncOtherSettingsBtn" type="button">Другие настройки</button>
+      </div>
+      <button class="btn-ghost" id="syncCloseBtn" type="button">Закрыть</button>
+      <button class="btn-ghost btn-ghost--danger" id="syncDisableBtn" type="button" hidden>Отключить</button>
+      <button class="btn-ghost" id="syncNowBtn" type="button">Синхронизировать сейчас</button>
+      <button class="btn-ghost" id="syncSaveBtn" type="button">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   КОНФИГ
+   ============================================================ */
+const GITHUB_JSON_URL   = 'https://raw.githubusercontent.com/donm1n3/DonFilms/refs/heads/main/movies.json';
+const GITHUB_DATA_OWNER  = 'donm1n3';
+const GITHUB_DATA_REPO   = 'DonFilms';
+const GITHUB_DATA_PATH   = 'user-data.json';
+const GITHUB_DATA_BRANCH = 'main';
+
+const USER_KEY         = 'donfilms_user_v1';
+const SYNC_TOKEN_KEY   = 'donfilms_gh_token';
+const HIDE_YEAR_KEY    = 'donfilms_hide_year';
+const HIDE_COUNT_KEY   = 'donfilms_hide_count';
+const PLANNED_COL_ID   = 'col_planned';
+
+const CATALOG_SORTS = [
+  { id: 'rating-desc', label: 'Оценка ↓' },
+  { id: 'year-desc',   label: 'Год ↓' },
+  { id: 'year-asc',    label: 'Год ↑' },
+  { id: 'title',       label: 'Алфавит' },
+];
+
+/* ============================================================
+   DOM
+   ============================================================ */
+const els = {
+  brand: document.getElementById('brandBtn'), form: document.getElementById('searchForm'),
+  input: document.getElementById('queryInput'), btn: document.getElementById('submitBtn'),
+  idle: document.getElementById('stateIdle'), loading: document.getElementById('stateLoading'),
+  error: document.getElementById('stateError'), results: document.getElementById('stateResults'),
+  resultsList: document.getElementById('resultsList'), history: document.getElementById('stateHistory'),
+  historyList: document.getElementById('historyList'), historyEmpty: document.getElementById('historyEmpty'),
+  historyBtn: document.getElementById('historyBtn'), historyBack: document.getElementById('historyBackBtn'),
+  historyClear: document.getElementById('historyClearBtn'), historyImport: document.getElementById('historyImportBtn'),
+  historyExport: document.getElementById('historyExportBtn'),
+  library: document.getElementById('stateLibrary'), libraryList: document.getElementById('libraryList'),
+  libraryEmpty: document.getElementById('libraryEmpty'), libraryBtn: document.getElementById('libraryBtn'),
+  libraryBack: document.getElementById('libraryBackBtn'), libraryYearBtn: document.getElementById('libraryYearBtn'),
+  libraryCountBtn: document.getElementById('libraryCountBtn'), activityBtn: document.getElementById('activityBtn'),
+  activity: document.getElementById('stateActivity'), activityBackBtn: document.getElementById('activityBackBtn'),
+  heatmapGrid: document.getElementById('heatmapGrid'), heatmapMonths: document.getElementById('heatmapMonths'),
+  collections: document.getElementById('stateCollections'), collectionsList: document.getElementById('collectionsList'),
+  collectionsEmpty: document.getElementById('collectionsEmpty'), collectionsBtn: document.getElementById('collectionsBtn'),
+  collectionsBack: document.getElementById('collectionsBackBtn'), collectionsCreate: document.getElementById('collectionsCreateBtn'),
+  collectionDetail: document.getElementById('stateCollectionDetail'), collectionDetailTitle: document.getElementById('collectionDetailTitle'),
+  collectionSearch: document.getElementById('collectionSearch'), collectionItemsList: document.getElementById('collectionItemsList'),
+  collectionDetailBack: document.getElementById('collectionDetailBackBtn'), collectionAddBtn: document.getElementById('collectionAddBtn'),
+  collectionDelete: document.getElementById('collectionDeleteBtn'), collectionYearBtn: document.getElementById('collectionYearBtn'),
+  collectionCountBtn: document.getElementById('collectionCountBtn'),
+  catalog: document.getElementById('stateCatalog'), catalogList: document.getElementById('catalogList'),
+  catalogEmpty: document.getElementById('catalogEmpty'), catalogBtn: document.getElementById('catalogBtn'),
+  catalogBack: document.getElementById('catalogBackBtn'), catalogFilterBtn: document.getElementById('catalogFilterBtn'),
+  catalogYearBtn: document.getElementById('catalogYearBtn'), catalogSortBtn: document.getElementById('catalogSortBtn'),
+  errorText: document.getElementById('errorText'), frame: document.getElementById('playerFrame'),
+  caption: document.getElementById('caption'), captionTitle: document.getElementById('captionTitle'),
+  captionYear: document.getElementById('captionYear'), statusWrap: document.getElementById('statusWrap'),
+  statusActions: document.getElementById('statusActions'), counterWrap: document.getElementById('counterWrap'),
+  countVal: document.getElementById('countVal'), countUp: document.getElementById('countUp'), countDown: document.getElementById('countDown'),
+  cycleToggle: document.getElementById('cycleToggle'), cyclePrev: document.getElementById('cyclePrev'),
+  cycleNext: document.getElementById('cycleNext'), cycleVal: document.getElementById('cycleVal'),
+  rating: document.getElementById('rating'), stars: document.getElementById('stars'), ratingValue: document.getElementById('ratingValue'),
+  seriesNav: document.getElementById('seriesNav'), seasonsRow: document.getElementById('seasonsRow'),
+  episodesRow: document.getElementById('episodesRow'), seasonToggleBtn: document.getElementById('seasonToggleBtn'),
+  extras: document.getElementById('extras'), noteBody: document.getElementById('noteBody'), noteEditor: document.getElementById('noteEditor'),
+  noteTextarea: document.getElementById('noteTextarea'), noteEditBtn: document.getElementById('noteEditBtn'),
+  noteSaveBtn: document.getElementById('noteSaveBtn'), noteCancelBtn: document.getElementById('noteCancelBtn'),
+  dictBody: document.getElementById('dictBody'), dictEditor: document.getElementById('dictEditor'),
+  dictTextarea: document.getElementById('dictTextarea'), dictEditBtn: document.getElementById('dictEditBtn'),
+  dictSaveBtn: document.getElementById('dictSaveBtn'), dictCancelBtn: document.getElementById('dictCancelBtn'),
+  dictTranslateBtn: document.getElementById('dictTranslateBtn'),
+  reviewBody: document.getElementById('reviewBody'), reviewEditor: document.getElementById('reviewEditor'),
+  reviewTextarea: document.getElementById('reviewTextarea'), reviewEditBtn: document.getElementById('reviewEditBtn'),
+  reviewSaveBtn: document.getElementById('reviewSaveBtn'), reviewCancelBtn: document.getElementById('reviewCancelBtn'),
+  importFile: document.getElementById('importFile'), autumnBtn: document.getElementById('autumnBtn'),
+  autumnLayer: document.getElementById('autumnLayer'), syncBtn: document.getElementById('syncBtn'),
+  syncModal: document.getElementById('syncModal'), syncTokenInput: document.getElementById('syncTokenInput'),
+  syncModalStatus: document.getElementById('syncModalStatus'), syncCloseBtn: document.getElementById('syncCloseBtn'),
+  syncDisableBtn: document.getElementById('syncDisableBtn'), syncNowBtn: document.getElementById('syncNowBtn'),
+  syncSaveBtn: document.getElementById('syncSaveBtn'), syncOtherSettingsBtn: document.getElementById('syncOtherSettingsBtn')
+};
+
+const STATES = {
+  idle: els.idle, loading: els.loading, error: els.error, results: els.results,
+  history: els.history, library: els.library, activity: els.activity, collections: els.collections,
+  collectionDetail: els.collectionDetail, catalog: els.catalog, player: els.frame
+};
+
+/* ============================================================
+   Состояние
+   ============================================================ */
+let userData = {
+  version: 2, history: [], ratings: {}, reviews: {}, notes: {},
+  watched: {}, collections: [], status: {}, watchCount: {}, watchDates: {}, activeCycle: {}, updatedAt: 0
+};
+let currentItem = null, currentRating = 0, currentCollectionId = null;
+let collectionSearchMode = false, currentSeason = null;
+let catalogFilterHideMarked = false, catalogSort = 'rating-desc';
+let hideYear = false, hideCount = false;
+
+let syncToken = null, syncStatus = 'off', syncError = '', remoteSha = null;
+let syncTimer = null, syncBusy = false, pendingSync = false; // <-- добавили pendingSync
+
+function localDateStr(d = new Date()) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'только что';
+  if (min < 60) return `${min} мин назад`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ч назад`;
+  const d = Math.floor(hr / 24);
+  if (d < 7) return `${d} дн назад`;
+  return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
+/* ============================================================
+   Миграция данных
+   ============================================================ */
+function normalizeUserData(obj) {
+  const newStatus = {}, newWatched = {}, newWatchCount = {}, newWatchDates = {}, newActiveCycle = {};
+
+  for (const [id, st] of Object.entries(obj.status || {})) {
+    if (typeof st === 'string') {
+      newStatus[id] = { state: st, date: null };
+      if (st === 'watched') {
+        newWatchCount[id] = 1;
+        newWatchDates[id] = [localDateStr()];
+      }
+    } else {
+      newStatus[id] = { state: st.state, date: st.date || null };
+      if (st.state === 'watched') {
+        newWatchCount[id] = obj.watchCount?.[id] || 1;
+        newWatchDates[id] = (st.date ? [st.date] : [localDateStr()]);
+      }
+    }
+  }
+
+  for (const [id, seasons] of Object.entries(obj.watched || {})) {
+    newWatched[id] = { cycle1: {}, cycle2: {} };
+    let isV1Data = false;
+    for (const [s, eps] of Object.entries(seasons)) {
+      if (Array.isArray(eps)) {
+        isV1Data = true;
+        newWatched[id].cycle1[s] = {};
+        eps.forEach(e => { newWatched[id].cycle1[s][e] = { date: null }; });
+      } else {
+        newWatched[id] = seasons;
+        break;
+      }
+    }
+    if (isV1Data && !newWatchCount[id]) newWatchCount[id] = 1;
+  }
+
+  if (obj.watchCount) Object.assign(newWatchCount, obj.watchCount);
+  if (obj.watchDates) Object.assign(newWatchDates, obj.watchDates);
+  if (obj.activeCycle) Object.assign(newActiveCycle, obj.activeCycle);
+
+  return {
+    version: 2,
+    history: Array.isArray(obj.history) ? obj.history : [],
+    ratings: obj.ratings || {},
+    reviews: obj.reviews || {},
+    notes: obj.notes || {},
+    watched: newWatched,
+    // Защита: если у старого сборника не было items, создаем пустой массив
+    collections: Array.isArray(obj.collections) ? obj.collections.filter(c => c && c.id).map(c => ({ ...c, items: Array.isArray(c.items) ? c.items : [] })) : [],
+    status: newStatus,
+    watchCount: newWatchCount,
+    watchDates: newWatchDates,
+    activeCycle: newActiveCycle,
+    updatedAt: obj.updatedAt || 0
+  };
+}
+
+function loadUserDataFromLocal() {
+  try { const raw = localStorage.getItem(USER_KEY); return raw ? normalizeUserData(JSON.parse(raw)) : null; } catch { return null; }
+}
+function saveUserDataToLocal() {
+  try { localStorage.setItem(USER_KEY, JSON.stringify(userData)); } catch {}
+}
+async function saveUserData() {
+  userData.updatedAt = Date.now(); saveUserDataToLocal(); schedulePush();
+}
+
+/* ============================================================
+   Github Sync
+   ============================================================ */
+function syncApiUrl() { return `https://api.github.com/repos/${GITHUB_DATA_OWNER}/${GITHUB_DATA_REPO}/contents/${GITHUB_DATA_PATH}`; }
+function syncAuthHeaders() { return { 'Authorization': 'Bearer ' + syncToken, 'Accept': 'application/vnd.github+json' }; }
+function toBase64(str) { const b = new TextEncoder().encode(str); let bin=''; b.forEach(x=>bin+=String.fromCharCode(x)); return btoa(bin); }
+function fromBase64(b64) { const bin=atob(b64.replace(/\s/g,'')), b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return new TextDecoder().decode(b); }
+function updateSyncUI() {
+  const b = els.syncBtn; b.className = 'sync-btn';
+  if (syncStatus === 'syncing') b.classList.add('is-syncing');
+  else if (syncStatus === 'ready') b.classList.add('is-ready');
+  else if (syncStatus === 'error') b.classList.add('is-error');
+  const s = els.syncModalStatus;
+  if (syncStatus === 'syncing') { s.dataset.kind='syncing'; s.textContent='Синхронизация…'; }
+  else if (syncStatus === 'ready') { s.dataset.kind='ready'; s.textContent='Включена. Данные синхронизированы.'; }
+  else if (syncStatus === 'error') { s.dataset.kind='error'; s.textContent='Ошибка: ' + (syncError||''); }
+  else { s.dataset.kind='idle'; s.textContent='Выключена.'; }
+  els.syncDisableBtn.hidden = !syncToken; els.syncSaveBtn.hidden = !!syncToken;
+  els.syncNowBtn.hidden = !syncToken; els.syncTokenInput.value = syncToken ? '••••••••' : '';
+  els.syncTokenInput.disabled = !!syncToken;
+}
+async function pullFromGitHub() {
+  if (!syncToken || syncBusy) return;
+  syncBusy = true; syncStatus = 'syncing'; syncError = ''; updateSyncUI();
+  try {
+    const r = await fetch(syncApiUrl(), { headers: syncAuthHeaders(), cache: 'no-cache' });
+    if (r.status === 404) { syncBusy = false; return pushToGitHub({ force: true }); }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json(); remoteSha = data.sha;
+    const remote = normalizeUserData(JSON.parse(fromBase64(data.content)));
+    if ((remote.updatedAt||0) > (userData.updatedAt||0)) {
+      userData = remote; saveUserDataToLocal(); renderHistory();
+      if(!els.library.hidden) renderLibrary(); if(!els.collections.hidden) renderCollections();
+    } else if ((userData.updatedAt||0) > (remote.updatedAt||0)) {
+      syncBusy = false; return pushToGitHub({ force: true });
+    }
+    syncStatus = 'ready';
+  } catch (e) { syncStatus = 'error'; syncError = e.message; }
+  finally { syncBusy = false; updateSyncUI(); }
+}
+async function pushToGitHub(opts = {}) {
+  if (!syncToken) return;
+  
+  // Если уже идет синхронизация, ставим флаг, что после нее нужно запустить еще одну
+  if (syncBusy) { 
+    pendingSync = true; 
+    return; 
+  }
+  
+  syncBusy = true; 
+  pendingSync = false; 
+  syncStatus = 'syncing'; 
+  syncError = ''; 
+  updateSyncUI();
+  
+  try {
+    if (!remoteSha && !opts.force) {
+      const r = await fetch(syncApiUrl(), { headers: syncAuthHeaders() });
+      if (r.ok) remoteSha = (await r.json()).sha; 
+      else if (r.status !== 404) throw new Error('HTTP ' + r.status);
+    }
+    
+    const body = { message: 'sync', content: toBase64(JSON.stringify(userData, null, 2)), branch: GITHUB_DATA_BRANCH };
+    if (remoteSha) body.sha = remoteSha;
+    
+    const res = await fetch(syncApiUrl(), { method: 'PUT', headers: { ...syncAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    
+    if (res.status === 409) { 
+      remoteSha = null; 
+      pendingSync = true; // Вызовем функцию заново в блоке finally
+      return; 
+    }
+    
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    
+    remoteSha = (await res.json())?.content?.sha || remoteSha; 
+    syncStatus = 'ready';
+  } catch (e) { 
+    syncStatus = 'error'; 
+    syncError = e.message; 
+  } finally { 
+    syncBusy = false; 
+    updateSyncUI();
+    
+    // Если во время отправки появились новые изменения или произошел конфликт (409)
+    if (pendingSync) {
+      // Небольшая задержка в 300мс, чтобы не спамить API GitHub
+      setTimeout(() => pushToGitHub({ force: true }), 300); 
+    }
+  }
+}
+function schedulePush() { if (!syncToken) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => pushToGitHub(), 1200); }
+
+/* ============================================================
+   База
+   ============================================================ */
+let dbCache = null;
+async function loadDatabase() {
+  if (dbCache) return dbCache;
+  const res = await fetch(GITHUB_JSON_URL + '?t=' + Date.now(), { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.json();
+  if (raw && typeof raw === 'object' && (raw.movies || raw.series)) {
+    dbCache = { movies: raw.movies || {}, series: raw.series || {} };
+  } else {
+    const movies = {}, series = {};
+    for (const [id, item] of Object.entries(raw || {})) {
+      if (!item || typeof item !== 'object') continue;
+      if (item.type === 'series' || item.seasons) series[id] = item; else movies[id] = item;
+    }
+    dbCache = { movies, series };
+  }
+  return dbCache;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+function formatDate(d) { if(!d) return 'Без даты'; const p=d.split('-'); return p.length===3 ? `${p[2]}.${p[1]}.${p[0]}` : `${p[1]}.${p[0]}`; }
+
+function findMatches(db, query) {
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return [];
+
+  const all = [];
+  for (const [id, m] of Object.entries(db.movies || {})) {
+    all.push({ id, type: 'movie', title: m.title, year: m.year, embed: m.embed });
+  }
+  for (const [id, s] of Object.entries(db.series || {})) {
+    all.push({ id, type: 'series', title: s.title, year: s.year, embed: s.embed, seasons: s.seasons });
+  }
+
+  // точное совпадение по названию — приоритет
+  const exact = all.filter(it => (it.title || '').toLowerCase() === q);
+  if (exact.length === 1) return exact;
+
+  // если введён год — сначала ищем по году
+  if (/^\d{4}$/.test(q)) {
+    const byYear = all.filter(it => String(it.year) === q);
+    if (byYear.length) return byYear;
+  }
+
+  // иначе — по вхождению
+  return all.filter(it => (it.title || '').toLowerCase().includes(q));
+}
+
+function findByYear(db, year) {
+  const out = [];
+  for (const [id, m] of Object.entries(db.movies || {})) {
+    if (String(m.year) === String(year)) out.push({ id, type: 'movie', title: m.title, year: m.year, embed: m.embed });
+  }
+  for (const [id, s] of Object.entries(db.series || {})) {
+    if (String(s.year) === String(year)) out.push({ id, type: 'series', title: s.title, year: s.year, embed: s.embed, seasons: s.seasons });
+  }
+  return out;
+}
+
+function recalcSeriesWatchCount(id) {
+  const s = dbCache?.series?.[id]; if (!s?.seasons) return;
+  let maxFull = 1;
+  const watched = userData.watched[id] || {};
+  const st = userData.status[id] || {};
+
+  // Полностью просмотренные циклы (все серии всех сезонов отмечены)
+  for (let c = 1; c <= 10; c++) {
+    const w = watched[`cycle${c}`]; if (!w) continue;
+    let total = 0, done = 0;
+    for (const [sn, cnt] of Object.entries(s.seasons)) {
+      const count = Number(cnt) || 0; total += count;
+      const eps = w[sn] || {};
+      done += Object.keys(eps).filter(e => Number(e) <= count).length;
+    }
+    if (total > 0 && done >= total) maxFull = Math.max(maxFull, c);
+  }
+
+  // Заброшенный сериал: если во 2-м цикле отмечено не меньше серий, чем в 1-м
+  if (st.state === 'abandoned') {
+    const w1 = watched['cycle1'] || {};
+    let c1Count = 0;
+    for (const sn in w1) { c1Count += Object.keys(w1[sn]).length; }
+    if (c1Count > 0) {
+      const w2 = watched['cycle2'] || {};
+      let c2Count = 0;
+      for (const sn in w2) { c2Count += Object.keys(w2[sn]).length; }
+      if (c2Count >= c1Count) maxFull = Math.max(maxFull, 2);
+    }
+  }
+
+  // Полный пересчёт: значение всегда отражает число реально завершённых циклов.
+  // Снятие отметок уменьшает счётчик.
+  userData.watchCount[id] = maxFull;
+}
+
+function getProgress(seriesId) {
+  const s = dbCache?.series?.[seriesId]; if (!s?.seasons) return 0;
+  const cycles = userData.watched[seriesId] || {};
+
+  // собираем все существующие циклы + активный (на случай, если он пуст и ещё не создан)
+  const cycleKeys = Object.keys(cycles).filter(k => /^cycle\d+$/.test(k));
+  const activeCyc = userData.activeCycle[seriesId] || 1;
+  if (!cycleKeys.includes(`cycle${activeCyc}`)) cycleKeys.push(`cycle${activeCyc}`);
+
+  let maxProgress = 0;
+  for (const ck of cycleKeys) {
+    const w = cycles[ck] || {};
+    let total = 0, done = 0;
+    for (const [sn, count] of Object.entries(s.seasons)) {
+      const c = Number(count) || 0; total += c;
+      const eps = w[sn] || {};
+      done += Object.keys(eps).filter(e => Number(e) <= c).length;
+    }
+    if (total > 0) {
+      const p = done / total;
+      if (p > maxProgress) maxProgress = p;
+    }
+  }
+  return maxProgress;
+}
+
+function donutHtml(pct) {
+  const r = 16, c = 2 * Math.PI * r; const label = Math.round(pct * 100) + '%';
+  let fill = '';
+  if (pct > 0) fill = `<circle cx="20" cy="20" r="${r}" class="donut-fill" stroke-dasharray="${(pct*c).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 20 20)"/>`;
+  return `<svg class="donut" viewBox="0 0 40 40"><circle cx="20" cy="20" r="${r}" class="donut-bg"/>${fill}<text x="20" y="20" class="donut-text">${label}</text></svg>`;
+}
+
+function buildRightHtml(id, year, type, extra = '') {
+  const r = Number(userData.ratings[id]);
+  const rText = r > 0 ? (Number.isInteger(r)?r.toFixed(0):r.toFixed(1)) : null;
+  const yHtml = (year && !hideYear) ? `<span class="result-year">${escapeHtml(String(year))}</span>` : '';
+  const rHtml = rText ? `<span class="rating-chip">${rText} ★</span>` : '';
+  const tHtml = `<span class="result-badge">${type==='series'?'Сериал':'Фильм'}</span>`;
+  return `<span class="result-right">${extra}${rHtml}${yHtml}${tHtml}<span class="result-arrow">▶</span></span>`;
+}
+
+/* ============================================================
+   Рендер экранов (ГЛАВНЫЙ ФИКС ЗДЕСЬ)
+   ============================================================ */
+function setState(name, opts={}) {
+  if(name!=='player') els.frame.src='about:blank';
+  for(const k in STATES) STATES[k].hidden = (k!==name);
+  
+  const showExtras = name==='player';
+  els.caption.hidden = !showExtras; els.extras.hidden = !showExtras;
+  if(!showExtras){ els.rating.hidden=true; els.statusWrap.hidden=true; els.seriesNav.hidden=true; }
+  
+  if(name==='error') els.errorText.textContent = opts.message||'';
+  if(name==='results') renderResults(opts.matches);
+  if(name==='history') renderHistory();
+  if(name==='library') renderLibrary();
+  if(name==='activity') renderActivity();
+  if(name==='collections') renderCollections();
+  if(name==='collectionDetail') renderCollectionDetail(); // <--- ИМЕННО ЭТОЙ СТРОКИ НЕ ХВАТАЛО
+  if(name==='catalog') renderCatalog();
+}
+
+function renderResults(matches) {
+  els.resultsList.innerHTML = '';
+  matches.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'result-item'; btn.type = 'button'; btn.dataset.type = m.type;
+    btn.innerHTML = `<span class="result-title">${escapeHtml(m.title)}</span>${buildRightHtml(m.id, m.year, m.type)}`;
+    btn.onclick = () => playItem(m); els.resultsList.appendChild(btn);
+  });
+}
+
+async function renderHistory() {
+  if(!dbCache) try { await loadDatabase(); } catch{}
+  els.historyList.innerHTML=''; els.historyEmpty.hidden = userData.history.length>0;
+  userData.history.forEach(e => {
+    const full = e.type==='series'?dbCache?.series?.[e.id]:dbCache?.movies?.[e.id];
+    const year = e.year || full?.year || '';
+    const btn = document.createElement('button');
+    btn.className='result-item'; btn.type='button'; btn.dataset.type=e.type;
+    const donut = e.type==='series' && full?.seasons ? donutHtml(getProgress(e.id)) : '';
+    btn.innerHTML = `
+      ${donut}
+      <span class="history-info">
+        <div class="history-title-row"><span class="history-title">${escapeHtml(e.title)}</span></div>
+        <span class="history-time">${timeAgo(e.ts)}</span>
+      </span>
+      ${buildRightHtml(e.id, year, e.type)}
+    `;
+    btn.onclick = () => playItem(e, true); els.historyList.appendChild(btn);
+  });
+}
+
+async function renderLibrary() {
+  if(!dbCache) try { await loadDatabase(); } catch{}
+  const items = [];
+  for (const [id,m] of Object.entries(dbCache?.movies||{})) {
+    const st = userData.status[id]?.state;
+    if(st==='planned') continue;
+    if(st==='watched' || Number(userData.ratings[id])>0) items.push({id,type:'movie',title:m.title,year:m.year||'',embed:m.embed,st});
+  }
+  for (const [id,s] of Object.entries(dbCache?.series||{})) {
+    const st = userData.status[id]?.state;
+    if(st==='planned') continue;
+    if(getProgress(id)>0 || st==='abandoned') items.push({id,type:'series',title:s.title,year:s.year||'',embed:s.embed,seasons:s.seasons,st});
+  }
+  items.sort((a,b)=>(Number(userData.ratings[b.id])||0)-(Number(userData.ratings[a.id])||0)||a.title.localeCompare(b.title,'ru'));
+  
+  els.libraryList.innerHTML=''; els.libraryEmpty.hidden = items.length>0;
+  items.forEach(it => {
+    const donut = it.type==='series'?donutHtml(getProgress(it.id)):'';
+    let c = userData.watchCount[it.id]||1;
+    if (it.type === 'movie') c = (userData.watchDates[it.id]||[]).length || 1;
+    const countHtml = (c>1 && !hideCount) ? `<span class="result-year" style="color:var(--gold); margin-right:4px;">x${c}</span>` : '';
+    const btn = document.createElement('div');
+    btn.className='result-item'; btn.dataset.type=it.type; btn.setAttribute('role','button');
+    btn.innerHTML = `
+      ${donut}
+      <span class="result-title">${escapeHtml(it.title)}</span>
+      ${buildRightHtml(it.id, it.year, it.type, countHtml)}
+    `;
+    btn.onclick = () => playItem(it);
+    els.libraryList.appendChild(btn);
+  });
+}
+
+function renderCollections() {
+  els.collectionsList.innerHTML=''; els.collectionsEmpty.hidden = userData.collections.length>0;
+  userData.collections.forEach(col => {
+    const row = document.createElement('div');
+    row.className='result-item';
+    row.innerHTML = `<span class="drag-handle" draggable="true">⠿</span><span class="result-title">${escapeHtml(col.name)}</span><span class="result-right"><span class="result-badge">${col.items.length} эл.</span><span class="result-arrow">▶</span></span>`;
+    
+    const handle = row.querySelector('.drag-handle');
+    handle.ondragstart = e => { e.dataTransfer.setData('text', col.id); row.classList.add('is-dragging'); };
+    handle.ondragend = () => { row.classList.remove('is-dragging'); };
+    
+    row.ondragover = e => { e.preventDefault(); row.classList.add('is-drag-over'); };
+    row.ondragleave = () => row.classList.remove('is-drag-over');
+    row.ondrop = async e => {
+      e.preventDefault(); row.classList.remove('is-drag-over');
+      const srcId = e.dataTransfer.getData('text');
+      if(!srcId || srcId===col.id) return;
+      const fi = userData.collections.findIndex(x=>x.id===srcId), ti = userData.collections.findIndex(x=>x.id===col.id);
+      if(fi>-1&&ti>-1){ const [m]=userData.collections.splice(fi,1); userData.collections.splice(ti,0,m); await saveUserData(); renderCollections(); }
+    };
+    
+    // Обычный клик по карточке (сработает, если не тянули за ручку)
+    row.onclick = (e) => { 
+      if (e.target.closest('.drag-handle')) return; 
+      openCollection(col.id); 
+    };
+    els.collectionsList.appendChild(row);
+  });
+}
+
+function openCollection(id) {
+  currentCollectionId = id;
+  // сбрасываем возможный режим поиска, чтобы при следующем открытии не остался открытым поле ввода
+  collectionSearchMode = false;
+  els.collectionSearch.hidden = true;
+  els.collectionSearch.value = '';
+  els.collectionAddBtn.textContent = 'Добавить';
+  setState('collectionDetail');
+}
+
+async function renderCollectionDetail() {
+  const col = userData.collections.find(c => c.id === currentCollectionId);
+  if (!col) return setState('collections');
+  els.collectionDetailTitle.textContent = col.name;
+  if (!dbCache) try { await loadDatabase(); } catch {}
+
+  // Скрываем тумблеры в режиме добавления; «кол-во» скрываем и для «Планирую посмотреть»
+  els.collectionYearBtn.hidden = collectionSearchMode;
+  els.collectionCountBtn.hidden = collectionSearchMode || col.id === PLANNED_COL_ID;
+
+  els.collectionItemsList.innerHTML = '';
+
+  if (collectionSearchMode) {
+    const q = els.collectionSearch.value.trim();
+    if (!q) {
+      // пусто, без надписи «Введите название»
+      return;
+    }
+    const matches = findMatches(dbCache || { movies: {}, series: {} }, q);
+    if (!matches.length) {
+      els.collectionItemsList.innerHTML = '<p class="collection-empty">Ничего нет.</p>';
+      return;
+    }
+    matches.forEach(m => {
+      const inCol = col.items.some(x => x.id === m.id);
+      const btn = document.createElement('button');
+      btn.className = 'result-item';
+      btn.type = 'button';
+      btn.innerHTML = `<span class="result-title">${escapeHtml(m.title)}</span>` +
+        `<span class="result-right">${buildRightHtml(m.id, m.year, m.type)}` +
+        `<span style="color:#fff;margin-left:8px">${inCol ? '✓' : '+'}</span></span>`;
+      btn.onclick = () => toggleCollectionItem(col, m);
+      els.collectionItemsList.appendChild(btn);
+    });
+    return;
+  }
+  
+  if(!col.items.length) { els.collectionItemsList.innerHTML = '<p class="collection-empty">Пусто.</p>'; return; }
+  col.items.forEach(it => {
+    const full = it.type==='movie'?dbCache?.movies?.[it.id]:dbCache?.series?.[it.id]; 
+    if(!full) return;
+    let c = userData.watchCount[it.id]||1;
+    if (it.type === 'movie') c = (userData.watchDates[it.id]||[]).length || 1;
+    const countHtml = (c>1 && !hideCount) ? `<span class="result-year" style="color:var(--gold); margin-right:4px;">x${c}</span>` : '';
+    
+    const row = document.createElement('div');
+    row.className='result-item';
+    row.innerHTML = `<span class="drag-handle" draggable="true">⠿</span><span class="result-title">${escapeHtml(full.title)}</span>${buildRightHtml(it.id,full.year,it.type,countHtml)}`;
+    
+    const handle = row.querySelector('.drag-handle');
+    handle.ondragstart = e => { e.dataTransfer.setData('text',it.id+'|'+it.type); row.classList.add('is-dragging'); };
+    handle.ondragend = () => { row.classList.remove('is-dragging'); };
+    
+    row.ondragover = e => { e.preventDefault(); row.classList.add('is-drag-over'); };
+    row.ondragleave = () => row.classList.remove('is-drag-over');
+    row.ondrop = async e => {
+      e.preventDefault(); row.classList.remove('is-drag-over');
+      const src = e.dataTransfer.getData('text').split('|');
+      if(src[0]===it.id && src[1]===it.type) return;
+      const fi = col.items.findIndex(x=>x.id===src[0]&&x.type===src[1]), ti = col.items.findIndex(x=>x.id===it.id&&x.type===it.type);
+      if(fi>-1&&ti>-1){ const [m]=col.items.splice(fi,1); col.items.splice(ti,0,m); await saveUserData(); renderCollectionDetail(); }
+    };
+    
+    row.onclick = e => { 
+      if (e.target.closest('.drag-handle')) return;
+      if(e.target.closest('[data-del]')) { removeFromCollection(col,it); return; } 
+      playItem({id:it.id,type:it.type,title:full.title,year:full.year,embed:full.embed,seasons:full.seasons}); 
+    };
+    row.querySelector('.result-right').insertAdjacentHTML('afterbegin', `<button class="icon-btn icon-btn--danger" data-del style="margin-right:6px;">✕</button>`);
+    els.collectionItemsList.appendChild(row);
+  });
+}
+
+async function renderCatalog() {
+  if(!dbCache) try { await loadDatabase(); } catch{}
+  let items = [];
+  for(const [id,m] of Object.entries(dbCache?.movies||{})) items.push({id,type:'movie',title:m.title,year:m.year||'',embed:m.embed});
+  for(const [id,s] of Object.entries(dbCache?.series||{})) items.push({id,type:'series',title:s.title,year:s.year||'',embed:s.embed,seasons:s.seasons});
+  
+  if(catalogFilterHideMarked) items = items.filter(it => {
+    if(Number(userData.ratings[it.id])>0 || userData.status[it.id]?.state) return false;
+    if(it.type==='series' && Object.values(userData.watched[it.id]||{}).some(cycle => 
+       Object.values(cycle||{}).some(season => Object.keys(season||{}).length > 0)
+    )) return false;
+    if(userData.collections.some(c=>c.items.some(x=>x.id===it.id))) return false;
+    return true;
+  });
+  
+  if(catalogSort==='rating-desc') items.sort((a,b)=>(Number(userData.ratings[b.id])||0)-(Number(userData.ratings[a.id])||0)||a.title.localeCompare(b.title,'ru'));
+  else if(catalogSort==='year-desc') items.sort((a,b)=>(Number(b.year)||0)-(Number(a.year)||0)||a.title.localeCompare(b.title,'ru'));
+  else if(catalogSort==='year-asc') items.sort((a,b)=>(Number(a.year)||0)-(Number(b.year)||0)||a.title.localeCompare(b.title,'ru'));
+  else items.sort((a,b)=>a.title.localeCompare(b.title,'ru'));
+
+  els.catalogList.innerHTML=''; els.catalogEmpty.hidden = items.length>0;
+  items.forEach(it => {
+    const btn = document.createElement('button');
+    btn.className='result-item'; btn.dataset.type=it.type;
+    btn.innerHTML = `<span class="result-title">${escapeHtml(it.title)}</span>${buildRightHtml(it.id,it.year,it.type)}`;
+    btn.onclick = ()=>playItem(it); els.catalogList.appendChild(btn);
+  });
+}
+
+/* ============================================================
+   Календарь
+   ============================================================ */
+function renderActivity() {
+  els.heatmapGrid.innerHTML=''; els.heatmapMonths.innerHTML='';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dataMap = {}; 
+  const ensure = d => dataMap[d] || (dataMap[d] = {visited:false, movies:[], eps:0, titles:[]});
+  
+  userData.history.forEach(h => { ensure(localDateStr(new Date(h.ts))).visited = true; });
+  
+  for (const [id, dates] of Object.entries(userData.watchDates || {})) {
+    const item = dbCache?.movies?.[id] || dbCache?.series?.[id];
+    if (item && Array.isArray(dates)) {
+      dates.forEach(d => {
+        if (d) {
+          const e = ensure(d);
+          e.movies.push(item.title);
+          if (!e.titles.includes(item.title)) e.titles.push(item.title);
+        }
+      });
+    }
+  }
+  
+  for(const [id, cycles] of Object.entries(userData.watched)) {
+    const series = dbCache?.series?.[id]; if(!series) continue;
+    for(const [cName, seasons] of Object.entries(cycles)) {
+      for(const [sNum, eps] of Object.entries(seasons)) {
+        for(const [eNum, obj] of Object.entries(eps)) {
+          if(obj.date) {
+            const d = obj.date.length===7 ? obj.date+'-01' : obj.date;
+            const e = ensure(d); e.eps++;
+            if(!e.titles.includes(series.title)) e.titles.push(series.title);
+          }
+        }
+      }
+    }
+  }
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - (start.getDay() || 7) + 1 - 51*7); 
+  let currentMonth = -1;
+
+  for(let w = 0; w < 52; w++) {
+    const dMon = new Date(start); dMon.setDate(dMon.getDate() + w * 7);
+    const mDiv = document.createElement('div'); mDiv.className = 'heatmap-month-label';
+    if (dMon.getMonth() !== currentMonth && dMon.getDate() <= 7) {
+      currentMonth = dMon.getMonth(); mDiv.textContent = dMon.toLocaleString('ru', {month:'short'});
+    }
+    els.heatmapMonths.appendChild(mDiv);
+  }
+
+  for(let i=0; i<52*7; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    if(d > today) break; 
+    
+    const dStr = localDateStr(d);
+    const data = dataMap[dStr];
+    const cell = document.createElement('div'); cell.className = 'heatmap-cell';
+    
+    let lvl = 0, tooltip = dStr;
+    if(data) {
+      if(data.movies.length > 0 && data.eps > 0) lvl = 3;
+      else if(data.movies.length > 1 || data.eps > 2) lvl = 3;
+      else if(data.movies.length === 1 || data.eps > 0) lvl = 2;
+      else if(data.visited) lvl = 1;
+      
+      let acts = [];
+      if(data.movies.length) acts.push(data.movies.join(', '));
+      if(data.eps) acts.push(`Серии: ${data.eps}`);
+      if(!acts.length && data.visited) acts.push('Заходил на страницу');
+      if(acts.length) tooltip += ': ' + acts.join('; ');
+    }
+    cell.dataset.lvl = lvl; cell.title = tooltip;
+    els.heatmapGrid.appendChild(cell);
+  }
+}
+
+/* ============================================================
+   Взаимодействие
+   ============================================================ */
+function showDateTooltip(el, dateStr, onSave) {
+  const tt = document.createElement('div'); tt.className = 'date-tooltip';
+  const renderView = () => {
+    tt.innerHTML = `<div class="date-tooltip-view"><span>Дата просмотра:</span><span class="date-tooltip-val">${formatDate(dateStr)}</span></div><div class="date-tooltip-actions"><button class="btn-tiny-tt" id="ttEdit">Изменить</button></div>`;
+    tt.querySelector('#ttEdit').onclick = (e) => { e.stopPropagation(); renderEdit(); };
+  };
+  const renderEdit = () => {
+    tt.innerHTML = `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">Формат: YYYY-MM-DD или YYYY-MM</div><input type="text" id="ttInput" value="${dateStr||''}" placeholder="2026-10 или 2026-10-15"><div class="date-tooltip-actions"><button class="btn-tiny-tt" id="ttClear" style="color:var(--red); margin-right:auto;">Стереть</button><button class="btn-tiny-tt" id="ttCancel">Отмена</button><button class="btn-tiny-tt" id="ttSave" style="background:var(--accent)">ОК</button></div>`;
+    const inp = tt.querySelector('#ttInput'); inp.focus();
+    tt.querySelector('#ttCancel').onclick = (e) => { e.stopPropagation(); renderView(); };
+    tt.querySelector('#ttClear').onclick = (e) => { e.stopPropagation(); onSave(null); close(); };
+    tt.querySelector('#ttSave').onclick = (e) => {
+      e.stopPropagation();
+      let v = inp.value.trim();
+      if (!v) v = null;
+      else {
+        // проверяем и формат, и то, что дата реально существует
+        if (!(/^\d{4}-\d{2}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) || isNaN(new Date(v).getTime())) { 
+          alert('Неверный формат или несуществующая дата.'); 
+          return; 
+        }
+      }
+      onSave(v); close();
+    };
+  }; // <--- ВОТ ЭТА СКОБКА БЫЛА ПОТЕРЯНА
+
+  const close = () => { tt.remove(); document.removeEventListener('click', outside); };
+  const outside = (e) => { if(!tt.contains(e.target)) close(); };
+
+  renderView(); 
+  document.body.appendChild(tt);
+  const r = el.getBoundingClientRect();
+  tt.style.left = Math.min(r.left, window.innerWidth - 250) + 'px';
+  tt.style.top = (r.bottom + window.scrollY + 8) + 'px';
+  setTimeout(() => document.addEventListener('click', outside), 10);
+}
+function attachDateHover(el, getDateFn, saveDateFn) {
+  el.addEventListener('mouseenter', () => {
+    dateHoverTimer = setTimeout(() => { showDateTooltip(el, getDateFn(), saveDateFn); }, 2000);
+  });
+  el.addEventListener('mouseleave', () => clearTimeout(dateHoverTimer));
+}
+
+function renderStatusAndCounter(item) {
+  els.statusWrap.hidden = false;
+  const st = userData.status[item.id] || {};
+  let count = userData.watchCount[item.id] || 1;
+  if (item.type === 'movie') count = (userData.watchDates[item.id] || []).length || 1;
+  
+  if(item.type === 'series') {
+    let anyProgress = false;
+    for (let c = 1; c <= 10; c++) {
+      const w = (userData.watched[item.id] || {})[`cycle${c}`] || {};
+      if (Object.keys(w).length > 0) anyProgress = true;
+    }
+    if(anyProgress || st.state === 'abandoned' || count > 1) {
+      els.cycleToggle.hidden = false;
+      const cyc = userData.activeCycle[item.id] || 1;
+      els.cycleVal.textContent = cyc;
+      els.cyclePrev.onclick = () => { userData.activeCycle[item.id] = Math.max(1, cyc - 1); saveUserData(); renderStatusAndCounter(item); renderSeriesNav(item); };
+      els.cycleNext.onclick = () => { userData.activeCycle[item.id] = cyc + 1; saveUserData(); renderStatusAndCounter(item); renderSeriesNav(item); };
+    } else els.cycleToggle.hidden = true;
+  } else els.cycleToggle.hidden = true;
+
+  els.statusActions.innerHTML = '';
+  const isSeries = item.type === 'series';
+  const opts = isSeries 
+    ? [{v:'abandoned',l:'Забросил'}, {v:'planned',l:'Планирую'}]
+    : [{v:'watched',l:'Посмотрел'}, {v:'planned',l:'Планирую'}];
+  
+  opts.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'status-btn' + (st.state === o.v ? ' is-active' : ''); b.dataset.status = o.v; b.textContent = o.l;
+    if(o.v === 'watched' || o.v === 'abandoned') {
+      attachDateHover(b, () => st.date, async (nd) => {
+        userData.status[item.id] = { state: o.v, date: nd }; await saveUserData();
+      });
+    }
+    b.onclick = async () => {
+      if(st.state === o.v) {
+        delete userData.status[item.id];
+        if (item.type === 'movie') delete userData.watchDates[item.id];
+      } else {
+        userData.status[item.id] = { state: o.v, date: localDateStr() };
+        if (item.type === 'movie' && o.v === 'watched') userData.watchDates[item.id] = [localDateStr()];
+      }
+      
+      let col = userData.collections.find(c=>c.id===PLANNED_COL_ID);
+      if(o.v === 'planned' && st.state !== 'planned') {
+        if(!col) { col = {id:PLANNED_COL_ID, name:'Планирую посмотреть', items:[]}; userData.collections.push(col); }
+        if(!col.items.some(x=>x.id===item.id)) col.items.push({id:item.id, type:item.type});
+      } else if (st.state === 'planned') {
+        if(col) col.items = col.items.filter(x=>x.id!==item.id);
+      }
+      await saveUserData(); renderStatusAndCounter(item);
+    };
+    els.statusActions.appendChild(b);
+  });
+  els.statusActions.hidden = false;
+
+  if(st.state === 'watched' || st.state === 'abandoned') {
+    els.counterWrap.hidden = false; els.countVal.textContent = count;
+    if (item.type === 'movie') {
+      els.countUp.onclick = async () => {
+        if(!userData.watchDates[item.id]) userData.watchDates[item.id] = [st.date || localDateStr()];
+        userData.watchDates[item.id].push(localDateStr());
+        userData.watchCount[item.id] = userData.watchDates[item.id].length;
+        await saveUserData(); renderStatusAndCounter(item);
+      };
+      els.countDown.onclick = async () => {
+        if(userData.watchDates[item.id] && userData.watchDates[item.id].length > 1) {
+          userData.watchDates[item.id].pop();
+          userData.watchCount[item.id] = userData.watchDates[item.id].length;
+          await saveUserData(); renderStatusAndCounter(item);
+        }
+      };
+    } else {
+      els.countUp.onclick = async () => { userData.watchCount[item.id] = (userData.watchCount[item.id]||1) + 1; await saveUserData(); renderStatusAndCounter(item); };
+      els.countDown.onclick = async () => { if(count>1) { userData.watchCount[item.id] = count - 1; await saveUserData(); renderStatusAndCounter(item); } };
+    }
+  } else els.counterWrap.hidden = true;
+}
+
+/* ============================================================
+   Сезоны
+   ============================================================ */
+function renderSeriesNav(item) {
+  if(item.type !== 'series' || !item.seasons) { els.seriesNav.hidden = true; return; }
+  els.seriesNav.hidden = false;
+  const seasons = Object.keys(item.seasons).map(Number).sort((a,b)=>a-b);
+  const cyc = userData.activeCycle[item.id] || 1;
+  const w = (userData.watched[item.id] || {})[`cycle${cyc}`] || {};
+  
+  let active = seasons[0];
+  for(const s of seasons) if(w[s] && Object.keys(w[s]).length) active = s;
+  
+  const renderS = (act) => {
+    els.seasonsRow.innerHTML = '';
+    seasons.forEach(s => {
+      const b = document.createElement('button'); b.className = 'season-btn' + (s===act ? ' is-active' : ''); b.textContent = `Сезон ${s}`; b.onclick = () => renderS(s);
+      els.seasonsRow.appendChild(b);
+    });
+    renderE(act);
+  };
+
+  const renderE = (sNum) => {
+    currentSeason = sNum;
+    const total = Number(item.seasons[sNum]) || 0;
+    const eps = w[sNum] || {};
+    const allW = Object.keys(eps).length >= total;
+    els.seasonToggleBtn.textContent = allW ? 'Снять весь сезон' : 'Выделить весь сезон';
+    els.seasonToggleBtn.classList.toggle('is-active', allW);
+    
+    els.episodesRow.innerHTML = '';
+    for(let i=1; i<=total; i++) {
+      const has = !!eps[i];
+      const b = document.createElement('button'); b.className = 'ep-btn' + (has ? ' is-watched' : ''); b.textContent = i;
+      
+      if(has) {
+        attachDateHover(b, () => eps[i].date, async (nd) => {
+          userData.watched[item.id][`cycle${cyc}`][sNum][i].date = nd; await saveUserData();
+        });
+      }
+
+      b.onclick = async () => {
+        if(!userData.watched[item.id]) userData.watched[item.id] = {};
+        if(!userData.watched[item.id][`cycle${cyc}`]) userData.watched[item.id][`cycle${cyc}`] = {};
+        if(!userData.watched[item.id][`cycle${cyc}`][sNum]) userData.watched[item.id][`cycle${cyc}`][sNum] = {};
+        
+        if(has) delete userData.watched[item.id][`cycle${cyc}`][sNum][i];
+        else userData.watched[item.id][`cycle${cyc}`][sNum][i] = { date: localDateStr() };
+        
+        recalcSeriesWatchCount(item.id);
+        await saveUserData(); renderE(sNum); renderStatusAndCounter(item);
+      };
+      els.episodesRow.appendChild(b);
+    }
+  };
+  renderS(active);
+
+  els.seasonToggleBtn.onclick = async () => {
+    const total = Number(item.seasons[currentSeason]) || 0;
+    if(!userData.watched[item.id]) userData.watched[item.id] = {};
+    if(!userData.watched[item.id][`cycle${cyc}`]) userData.watched[item.id][`cycle${cyc}`] = {};
+    
+    if(Object.keys(w[currentSeason]||{}).length >= total) {
+      userData.watched[item.id][`cycle${cyc}`][currentSeason] = {};
+    } else {
+      const d = localDateStr();
+      userData.watched[item.id][`cycle${cyc}`][currentSeason] = {};
+      for(let i=1; i<=total; i++) userData.watched[item.id][`cycle${cyc}`][currentSeason][i] = { date: d };
+    }
+    recalcSeriesWatchCount(item.id);
+    await saveUserData(); renderE(currentSeason); renderStatusAndCounter(item);
+  };
+}
+
+/* ============================================================
+   Рейтинг, запуск, заметки
+   ============================================================ */
+const STAR_PATH = 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z';
+function paintStars(v) {
+  els.stars.innerHTML = '';
+  for(let i=0; i<5; i++) {
+    const f = Math.max(0, Math.min(1, v-i))*100;
+    const s = document.createElement('span'); s.className = 'star'; s.dataset.index = i;
+    s.innerHTML = `<svg class="star-bg" viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg><span class="star-fill" style="width:${f}%"><svg viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg></span>`;
+    els.stars.appendChild(s);
+  }
+}
+function getRating(e, s) { const i=Number(s.dataset.index), r=s.getBoundingClientRect(); return (e.clientX-r.left)<r.width/2 ? i+0.5 : i+1; }
+els.stars.onmousemove = e => { const s=e.target.closest('.star'); if(s && currentItem){ const v=getRating(e,s); paintStars(v); els.ratingValue.textContent=v; } };
+els.stars.onmouseleave = () => { if(currentItem){ paintStars(currentRating); els.ratingValue.textContent=currentRating||'—'; } };
+els.stars.onclick = async e => {
+  const s=e.target.closest('.star'); if(!s||!currentItem) return;
+  const v=getRating(e,s); currentRating = (currentRating===v)?0:v; userData.ratings[currentItem.id] = currentRating;
+  if(currentItem.type==='movie' && currentRating>0) {
+    if(userData.status[currentItem.id]?.state !== 'watched') {
+      userData.status[currentItem.id] = { state: 'watched', date: localDateStr() };
+      userData.watchDates[currentItem.id] = [localDateStr()];
+    }
+  }
+  paintStars(currentRating); els.ratingValue.textContent=currentRating||'—';
+  await saveUserData(); renderStatusAndCounter(currentItem);
+};
+
+async function playItem(item, fromHistory = false) {
+  if(!dbCache) try { await loadDatabase(); } catch{}
+  if(item.type==='series' && !item.seasons) item = { ...dbCache?.series?.[item.id], id: item.id, type: 'series' };
+  if(!item?.embed) return setState('error', {message:'Нет ссылки'});
+  
+  currentItem = item;
+  els.frame.src = item.embed;
+  setState('player');
+  els.captionTitle.textContent = item.title;
+  els.captionYear.textContent = item.year || '';
+  els.captionYear.hidden = !item.year;
+  
+  currentRating = Number(userData.ratings[item.id]) || 0;
+  paintStars(currentRating); els.ratingValue.textContent = currentRating || '—';
+  els.rating.hidden = false;
+  
+  renderStatusAndCounter(item);
+  if(item.type==='series') renderSeriesNav(item); else els.seriesNav.hidden = true;
+
+  els.extras.hidden = false;
+  const notes = userData.notes[item.id] || {}, rev = userData.reviews[item.id] || '';
+  els.noteBody.textContent = notes.text || ''; els.noteBody.hidden = !notes.text; els.noteEditBtn.textContent = notes.text ? 'Ред.' : 'Добавить'; els.noteEditor.hidden = true;
+  els.dictBody.innerHTML = notes.dict ? formatDict(notes.dict) : ''; els.dictBody.hidden = !notes.dict; els.dictEditBtn.textContent = notes.dict ? 'Ред.' : 'Добавить'; els.dictEditor.hidden = true;
+  els.reviewBody.textContent = rev; els.reviewBody.hidden = !rev; els.reviewEditBtn.textContent = rev ? 'Ред.' : 'Добавить'; els.reviewEditor.hidden = true;
+
+  const entry = { id: item.id, type: item.type, title: item.title, year: item.year, embed: item.embed, ts: Date.now() };
+  userData.history = [entry, ...userData.history.filter(x=>x.id!==item.id)].slice(0, 30);
+  await saveUserData();
+}
+
+function formatDict(text) {
+  return text.split('\n').filter(l=>l.trim()).map(l => {
+    const m = l.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+    return m ? `<div class="dict-line"><span class="dict-word">${escapeHtml(m[1].trim())}</span><span class="dict-dash">—</span><span class="dict-trans">${escapeHtml(m[2].trim())}</span></div>`
+             : `<div class="dict-line"><span class="dict-word">${escapeHtml(l)}</span></div>`;
+  }).join('');
+}
+
+els.noteEditBtn.onclick = () => { if(!currentItem) return; els.noteTextarea.value = (userData.notes[currentItem.id]||{}).text||''; els.noteBody.hidden=true; els.noteEditor.hidden=false; els.noteTextarea.focus(); };
+els.noteCancelBtn.onclick = () => { els.noteEditor.hidden=true; els.noteBody.hidden = !(userData.notes[currentItem?.id]||{}).text; };
+els.noteSaveBtn.onclick = async () => { if(!currentItem) return; if(!userData.notes[currentItem.id]) userData.notes[currentItem.id]={}; userData.notes[currentItem.id].text=els.noteTextarea.value.trim(); await saveUserData(); playItem(currentItem); };
+
+els.dictEditBtn.onclick = () => { if(!currentItem) return; els.dictTextarea.value = (userData.notes[currentItem.id]||{}).dict||''; els.dictBody.hidden=true; els.dictEditor.hidden=false; els.dictTextarea.focus(); };
+els.dictCancelBtn.onclick = () => { els.dictEditor.hidden=true; els.dictBody.hidden = !(userData.notes[currentItem?.id]||{}).dict; };
+els.dictSaveBtn.onclick = async () => { if(!currentItem) return; if(!userData.notes[currentItem.id]) userData.notes[currentItem.id]={}; userData.notes[currentItem.id].dict=els.dictTextarea.value.trim(); await saveUserData(); playItem(currentItem); };
+els.dictTranslateBtn.onclick = async () => {
+  if(!('Translator' in window)) return alert('Только Chrome/Edge.');
+  try {
+    const t = await Translator.create({sourceLanguage:'en', targetLanguage:'ru'}); const lines = els.dictTextarea.value.split('\n'); const out = [];
+    for(const l of lines) { if(!l.trim() || l.includes('—') || l.includes('-')) { out.push(l); continue; } try { out.push(`${l} — ${await t.translate(l)}`); } catch { out.push(l); } }
+    els.dictTextarea.value = out.join('\n');
+  } catch(e) { alert('Ошибка перевода'); }
+};
+
+els.reviewEditBtn.onclick = () => { if(!currentItem) return; els.reviewTextarea.value = userData.reviews[currentItem.id]||''; els.reviewBody.hidden=true; els.reviewEditor.hidden=false; els.reviewTextarea.focus(); };
+els.reviewCancelBtn.onclick = () => { els.reviewEditor.hidden=true; els.reviewBody.hidden = !userData.reviews[currentItem?.id]; };
+els.reviewSaveBtn.onclick = async () => { if(!currentItem) return; const v=els.reviewTextarea.value.trim(); if(v) userData.reviews[currentItem.id]=v; else delete userData.reviews[currentItem.id]; await saveUserData(); playItem(currentItem); };
+
+/* ============================================================
+   Навигация
+   ============================================================ */
+async function handleSearch(e) {
+  e.preventDefault();
+  const q = els.input.value.trim(); 
+  if (!q) return;
+  
+  setState('loading');
+  
+  try {
+    const db = await loadDatabase();
+    
+    // Проверяем, есть ли в базе фильм/сериал, который называется ровно так же (например, "1984")
+    const allItems = [...Object.values(db.movies || {}), ...Object.values(db.series || {})];
+    const hasExactTitle = allItems.some(it => (it.title || '').toLowerCase() === q.toLowerCase());
+    
+    let matches = [];
+    
+    if (hasExactTitle) {
+      // Если есть точное совпадение по названию — ищем по названию (игнорируем поиск по году)
+      matches = findMatches(db, q);
+    } else if (/^\d{4}$/.test(q)) {
+      // Если ввели 4 цифры и фильма с таким названием нет — ищем по году
+      matches = findByYear(db, q);
+      // Если по году ничего нет, на всякий случай проверяем, нет ли цифр в названиях
+      if (!matches.length) matches = findMatches(db, q);
+    } else {
+      // Обычный текстовый поиск
+      matches = findMatches(db, q);
+    }
+    
+    if (!matches.length) {
+      setState('error', { message: `Ничего не найдено.` });
+    } else if (matches.length === 1) {
+      playItem(matches[0]);
+    } else {
+      setState('results', { matches });
+    }
+  } catch (err) { 
+    setState('error', { message: 'Ошибка загрузки базы' }); 
+  }
+}
+
+function goHome() { els.input.value=''; currentItem=null; setState('idle'); }
+
+function updateToggles() {
+  [els.libraryYearBtn, els.collectionYearBtn, els.catalogYearBtn].forEach(b => {
+    if(b) { b.textContent = hideYear?'Показать год':'Скрыть год'; b.classList.toggle('is-active', hideYear); }
+  });
+  [els.libraryCountBtn, els.collectionCountBtn].forEach(b => {
+    if(b) { b.textContent = hideCount?'Показать кол-во':'Скрыть кол-во'; b.classList.toggle('is-active', hideCount); }
+  });
+}
+function toggleYear() { hideYear=!hideYear; localStorage.setItem(HIDE_YEAR_KEY, hideYear?'1':'0'); updateToggles(); renderLibrary(); if(!els.collectionDetail.hidden) renderCollectionDetail(); renderCatalog(); }
+function toggleCount() { hideCount=!hideCount; localStorage.setItem(HIDE_COUNT_KEY, hideCount?'1':'0'); updateToggles(); renderLibrary(); if(!els.collectionDetail.hidden) renderCollectionDetail(); }
+
+function cycleSort() {
+  const idx = CATALOG_SORTS.findIndex(s=>s.id===catalogSort);
+  catalogSort = CATALOG_SORTS[(idx+1)%CATALOG_SORTS.length].id;
+  els.catalogSortBtn.textContent = CATALOG_SORTS.find(s=>s.id===catalogSort).label;
+  renderCatalog();
+}
+
+/* ============================================================
+   Обработчики
+   ============================================================ */
+els.form.onsubmit = handleSearch;
+els.brand.onclick = goHome;
+els.historyBtn.onclick = () => setState('history');
+els.historyBack.onclick = goHome;
+els.libraryBtn.onclick = () => setState('library');
+els.libraryBack.onclick = goHome;
+els.activityBtn.onclick = () => setState('activity');
+els.activityBackBtn.onclick = () => setState('library');
+els.collectionsBtn.onclick = () => setState('collections');
+els.collectionsBack.onclick = goHome;
+els.catalogBtn.onclick = () => setState('catalog');
+els.catalogBack.onclick = goHome;
+
+els.libraryYearBtn.onclick = toggleYear;
+els.collectionYearBtn.onclick = toggleYear;
+els.catalogYearBtn.onclick = toggleYear;
+els.libraryCountBtn.onclick = toggleCount;
+els.collectionCountBtn.onclick = toggleCount;
+els.catalogSortBtn.onclick = cycleSort;
+
+els.catalogFilterBtn.onclick = () => { catalogFilterHideMarked=!catalogFilterHideMarked; els.catalogFilterBtn.classList.toggle('is-active', catalogFilterHideMarked); renderCatalog(); };
+
+els.collectionsCreate.onclick = async () => {
+  const n = prompt('Название сборника:'); if(!n?.trim()) return;
+  userData.collections.push({id:'col_'+Date.now(), name:n.trim(), items:[]}); await saveUserData(); renderCollections();
+};
+els.collectionDetailBack.onclick = () => { currentCollectionId=null; setState('collections'); };
+els.collectionDelete.onclick = async () => {
+  if(!confirm('Удалить?')) return; userData.collections = userData.collections.filter(c=>c.id!==currentCollectionId); await saveUserData(); setState('collections');
+};
+els.collectionAddBtn.onclick = () => {
+  collectionSearchMode = !collectionSearchMode;
+  els.collectionSearch.hidden = !collectionSearchMode;
+  els.collectionSearch.value = ''; els.collectionAddBtn.textContent = collectionSearchMode?'Готово':'Добавить';
+  if(collectionSearchMode) els.collectionSearch.focus();
+  renderCollectionDetail();
+};
+let cSearchTimer;
+els.collectionSearch.oninput = () => { clearTimeout(cSearchTimer); cSearchTimer=setTimeout(renderCollectionDetail, 200); };
+
+async function toggleCollectionItem(col, m) {
+  const i = col.items.findIndex(x=>x.id===m.id); if(i>-1) col.items.splice(i,1); else col.items.push({id:m.id,type:m.type});
+  await saveUserData(); renderCollectionDetail();
+}
+async function removeFromCollection(col, it) {
+  col.items = col.items.filter(x=>x.id!==it.id); await saveUserData(); renderCollectionDetail();
+}
+
+els.syncBtn.onclick = () => { els.syncModal.hidden = false; updateSyncUI(); };
+els.syncCloseBtn.onclick = () => els.syncModal.hidden = true;
+els.syncOtherSettingsBtn.onclick = () => alert('Другие настройки пока в разработке.');
+els.syncSaveBtn.onclick = async () => { const t = els.syncTokenInput.value.trim(); if(!t) return; syncToken=t; localStorage.setItem(SYNC_TOKEN_KEY,t); syncStatus='syncing'; updateSyncUI(); await pullFromGitHub(); };
+els.syncDisableBtn.onclick = () => { if(!confirm('Отключить?')) return; syncToken=null; localStorage.removeItem(SYNC_TOKEN_KEY); syncStatus='off'; updateSyncUI(); els.syncModal.hidden=true; };
+els.syncNowBtn.onclick = () => pullFromGitHub();
+
+els.historyExport.onclick = () => {
+  const b = new Blob([JSON.stringify(userData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='donfilms-user.json'; a.click();
+};
+els.historyImport.onclick = () => els.importFile.click();
+els.importFile.onchange = async e => {
+  const f = e.target.files?.[0]; if(!f) return;
+  try { const p = JSON.parse(await f.text()); if(confirm('Заменить данные?')) { userData = normalizeUserData(p); await saveUserData(); goHome(); } } catch(err) { alert('Ошибка'); }
+  e.target.value = '';
+};
+els.historyClear.onclick = async () => { if(!confirm('Очистить историю?')) return; userData.history=[]; await saveUserData(); renderHistory(); };
+
+document.addEventListener('keydown', e => { 
+  if (e.key === 'Escape') {
+    // Если пользователь печатает в текстовом поле, не закрываем экран
+    if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+      document.activeElement.blur(); // Просто убираем фокус с поля
+      return;
+    }
+    goHome(); 
+  }
+});
+
+/* ============================================================
+   Инициализация
+   ============================================================ */
+(async () => {
+  const l = loadUserDataFromLocal(); if(l) userData = l;
+  
+  try { hideYear = localStorage.getItem(HIDE_YEAR_KEY)==='1'; } catch{}
+  try { hideCount = localStorage.getItem(HIDE_COUNT_KEY)==='1'; } catch{}
+  updateToggles();
+  
+  try { const t = localStorage.getItem(SYNC_TOKEN_KEY); if(t) { syncToken = t; syncStatus='ready'; } } catch{}
+  updateSyncUI();
+  
+  const autumn = localStorage.getItem('donfilms_autumn') === '1';
+  if(autumn) { document.body.classList.add('autumn-mode'); els.autumnBtn.classList.add('is-active'); }
+  els.autumnBtn.onclick = () => {
+    const on = document.body.classList.toggle('autumn-mode');
+    els.autumnBtn.classList.toggle('is-active', on);
+    localStorage.setItem('donfilms_autumn', on?'1':'0');
+    if(on) els.autumnLayer.innerHTML = Array.from({length:30}).map(()=>`<div class="autumn-item" style="left:${Math.random()*100}vw; animation-duration:${9+Math.random()*10}s; animation-delay:-${Math.random()*5}s; font-size:${14+Math.random()*20}px; --sway:${Math.random()*100-50}px;">${['🍂','🍁','🎃','🦇'][Math.floor(Math.random()*4)]}</div>`).join('');
+    else els.autumnLayer.innerHTML = '';
+  };
+  if(autumn) els.autumnBtn.click();
+
+  setState('idle');
+  if(syncToken) pullFromGitHub().catch(()=>{});
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('PWA: Service Worker зарегистрирован', reg))
+      .catch(err => console.error('PWA: Ошибка регистрации', err));
+  });
+}
+
+</script>
+</body>
+</html>
