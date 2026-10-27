@@ -155,8 +155,8 @@
     justify-content: flex-start;
     padding: 28px 32px;
     overflow-y: auto;
-    overflow-x: hidden;         /* горизонтальный скролл не нужен */
-    scrollbar-gutter: stable;   /* ← место под скроллбар резервируется всегда */
+    overflow-x: hidden;         
+    scrollbar-gutter: stable;   
   }
   .state--results h2 { margin-bottom: 2px; }
 
@@ -385,11 +385,11 @@
   .ep-btn.is-watched:hover { background: linear-gradient(135deg, #9ff0aa, #b8ffc2); }
 
   .extras {
-    margin-top: 30px;      /* было 120px — линия поднимется на 90px */
+    margin-top: 30px;      
     display: flex; flex-direction: column; gap: 12px;
     position: relative; z-index: 1;
     border-top: 1px solid var(--border); 
-    padding-top: 40px;    /* было 24px — компенсирует, блоки остаются там же */
+    padding-top: 40px;    
   }
   .extra-block { border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.025); padding: 14px 16px; }
   .extra-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -475,7 +475,7 @@
     .result-item { padding: 12px 14px; font-size: 13.5px; gap: 8px; flex-wrap: wrap; }
     .caption { flex-direction: column; align-items: flex-start; gap: 10px; }
     .status-wrap { width: 100%; justify-content: space-between; }
-    .extras { margin-top: 20px; }
+    .extras { margin-top: 20px; padding-top: 40px; }
     #activityBtn { position: static; margin-bottom: 10px; }
   }
 </style>
@@ -724,9 +724,25 @@
 <input type="file" id="importFile" accept="application/json,.json" hidden />
 
 <div class="modal-backdrop" id="syncModal" hidden>
-  <div class="modal">
+  <div class="modal" style="max-width: 550px;">
     <h3>Синхронизация</h3>
-    <input id="syncTokenInput" type="password" placeholder="github_pat_..." />
+    
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <label style="font-size: 12px; color: var(--muted);">Куда синхронизировать:</label>
+      <select id="syncTargetSelect" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none; cursor: pointer;">
+        <option value="default">donm1n3/DonFilms (по умолчанию)</option>
+        <option value="custom">Свой репозиторий</option>
+      </select>
+      
+      <div id="syncCustomFields" style="display: none; flex-direction: column; gap: 8px; margin-top: 4px;">
+        <input id="syncOwnerInput" type="text" placeholder="Владелец (например, ivan)" style="width: 100%; height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none;" />
+        <input id="syncRepoInput" type="text" placeholder="Репозиторий (например, MyFilms)" style="width: 100%; height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none;" />
+        <input id="syncPathInput" type="text" placeholder="Путь к файлу (например, user-data.json)" style="width: 100%; height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none;" />
+        <input id="syncBranchInput" type="text" placeholder="Ветка (например, main)" style="width: 100%; height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; outline: none;" />
+      </div>
+    </div>
+
+    <input id="syncTokenInput" type="password" placeholder="github_pat_..." style="margin-top: 12px;" />
     <div class="modal-status" id="syncModalStatus" data-kind="idle">Выключена.</div>
     <div class="modal-actions">
       <div style="flex: 1; display: flex; justify-content: center; min-width: 140px;">
@@ -744,11 +760,19 @@
 /* ============================================================
    КОНФИГ
    ============================================================ */
-const GITHUB_JSON_URL   = 'https://raw.githubusercontent.com/donm1n3/DonFilms/refs/heads/main/movies.json';
-const GITHUB_DATA_OWNER  = 'donm1n3';
-const GITHUB_DATA_REPO   = 'DonFilms';
-const GITHUB_DATA_PATH   = 'user-data.json';
-const GITHUB_DATA_BRANCH = 'main';
+const DEFAULT_GITHUB_DATA_OWNER  = 'donm1n3';
+const DEFAULT_GITHUB_DATA_REPO   = 'DonFilms';
+const DEFAULT_GITHUB_DATA_PATH   = 'user-data.json';
+const DEFAULT_GITHUB_DATA_BRANCH = 'main';
+
+let GITHUB_DATA_OWNER  = localStorage.getItem('df_sync_owner') || DEFAULT_GITHUB_DATA_OWNER;
+let GITHUB_DATA_REPO   = localStorage.getItem('df_sync_repo') || DEFAULT_GITHUB_DATA_REPO;
+let GITHUB_DATA_PATH   = localStorage.getItem('df_sync_path') || DEFAULT_GITHUB_DATA_PATH;
+let GITHUB_DATA_BRANCH = localStorage.getItem('df_sync_branch') || DEFAULT_GITHUB_DATA_BRANCH;
+
+function getGithubJsonUrl() {
+  return `https://raw.githubusercontent.com/${GITHUB_DATA_OWNER}/${GITHUB_DATA_REPO}/refs/heads/${GITHUB_DATA_BRANCH}/movies.json`;
+}
 
 const USER_KEY         = 'donfilms_user_v1';
 const SYNC_TOKEN_KEY   = 'donfilms_gh_token';
@@ -819,7 +843,10 @@ const els = {
   syncModal: document.getElementById('syncModal'), syncTokenInput: document.getElementById('syncTokenInput'),
   syncModalStatus: document.getElementById('syncModalStatus'), syncCloseBtn: document.getElementById('syncCloseBtn'),
   syncDisableBtn: document.getElementById('syncDisableBtn'), syncNowBtn: document.getElementById('syncNowBtn'),
-  syncSaveBtn: document.getElementById('syncSaveBtn'), syncOtherSettingsBtn: document.getElementById('syncOtherSettingsBtn')
+  syncSaveBtn: document.getElementById('syncSaveBtn'), syncOtherSettingsBtn: document.getElementById('syncOtherSettingsBtn'),
+  syncTargetSelect: document.getElementById('syncTargetSelect'), syncCustomFields: document.getElementById('syncCustomFields'),
+  syncOwnerInput: document.getElementById('syncOwnerInput'), syncRepoInput: document.getElementById('syncRepoInput'),
+  syncPathInput: document.getElementById('syncPathInput'), syncBranchInput: document.getElementById('syncBranchInput')
 };
 
 const STATES = {
@@ -841,7 +868,7 @@ let catalogFilterHideMarked = false, catalogSort = 'rating-desc';
 let hideYear = false, hideCount = false;
 
 let syncToken = null, syncStatus = 'off', syncError = '', remoteSha = null;
-let syncTimer = null, syncBusy = false, pendingSync = false; // <-- добавили pendingSync
+let syncTimer = null, syncBusy = false, pendingSync = false;
 
 function localDateStr(d = new Date()) {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
@@ -909,7 +936,6 @@ function normalizeUserData(obj) {
     reviews: obj.reviews || {},
     notes: obj.notes || {},
     watched: newWatched,
-    // Защита: если у старого сборника не было items, создаем пустой массив
     collections: Array.isArray(obj.collections) ? obj.collections.filter(c => c && c.id).map(c => ({ ...c, items: Array.isArray(c.items) ? c.items : [] })) : [],
     status: newStatus,
     watchCount: newWatchCount,
@@ -949,6 +975,14 @@ function updateSyncUI() {
   els.syncDisableBtn.hidden = !syncToken; els.syncSaveBtn.hidden = !!syncToken;
   els.syncNowBtn.hidden = !syncToken; els.syncTokenInput.value = syncToken ? '••••••••' : '';
   els.syncTokenInput.disabled = !!syncToken;
+
+  const isCustom = GITHUB_DATA_OWNER !== DEFAULT_GITHUB_DATA_OWNER || GITHUB_DATA_REPO !== DEFAULT_GITHUB_DATA_REPO;
+  els.syncTargetSelect.value = isCustom ? 'custom' : 'default';
+  els.syncCustomFields.style.display = isCustom ? 'flex' : 'none';
+  els.syncOwnerInput.value = GITHUB_DATA_OWNER;
+  els.syncRepoInput.value = GITHUB_DATA_REPO;
+  els.syncPathInput.value = GITHUB_DATA_PATH;
+  els.syncBranchInput.value = GITHUB_DATA_BRANCH;
 }
 async function pullFromGitHub() {
   if (!syncToken || syncBusy) return;
@@ -972,7 +1006,6 @@ async function pullFromGitHub() {
 async function pushToGitHub(opts = {}) {
   if (!syncToken) return;
   
-  // Если уже идет синхронизация, ставим флаг, что после нее нужно запустить еще одну
   if (syncBusy) { 
     pendingSync = true; 
     return; 
@@ -998,7 +1031,7 @@ async function pushToGitHub(opts = {}) {
     
     if (res.status === 409) { 
       remoteSha = null; 
-      pendingSync = true; // Вызовем функцию заново в блоке finally
+      pendingSync = true;
       return; 
     }
     
@@ -1013,9 +1046,7 @@ async function pushToGitHub(opts = {}) {
     syncBusy = false; 
     updateSyncUI();
     
-    // Если во время отправки появились новые изменения или произошел конфликт (409)
     if (pendingSync) {
-      // Небольшая задержка в 300мс, чтобы не спамить API GitHub
       setTimeout(() => pushToGitHub({ force: true }), 300); 
     }
   }
@@ -1028,7 +1059,7 @@ function schedulePush() { if (!syncToken) return; clearTimeout(syncTimer); syncT
 let dbCache = null;
 async function loadDatabase() {
   if (dbCache) return dbCache;
-  const res = await fetch(GITHUB_JSON_URL + '?t=' + Date.now(), { cache: 'no-cache' });
+  const res = await fetch(getGithubJsonUrl() + '?t=' + Date.now(), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const raw = await res.json();
   if (raw && typeof raw === 'object' && (raw.movies || raw.series)) {
@@ -1059,17 +1090,14 @@ function findMatches(db, query) {
     all.push({ id, type: 'series', title: s.title, year: s.year, embed: s.embed, seasons: s.seasons });
   }
 
-  // точное совпадение по названию — приоритет
   const exact = all.filter(it => (it.title || '').toLowerCase() === q);
   if (exact.length === 1) return exact;
 
-  // если введён год — сначала ищем по году
   if (/^\d{4}$/.test(q)) {
     const byYear = all.filter(it => String(it.year) === q);
     if (byYear.length) return byYear;
   }
 
-  // иначе — по вхождению
   return all.filter(it => (it.title || '').toLowerCase().includes(q));
 }
 
@@ -1090,7 +1118,6 @@ function recalcSeriesWatchCount(id) {
   const watched = userData.watched[id] || {};
   const st = userData.status[id] || {};
 
-  // Полностью просмотренные циклы (все серии всех сезонов отмечены)
   for (let c = 1; c <= 10; c++) {
     const w = watched[`cycle${c}`]; if (!w) continue;
     let total = 0, done = 0;
@@ -1102,7 +1129,6 @@ function recalcSeriesWatchCount(id) {
     if (total > 0 && done >= total) maxFull = Math.max(maxFull, c);
   }
 
-  // Заброшенный сериал: если во 2-м цикле отмечено не меньше серий, чем в 1-м
   if (st.state === 'abandoned') {
     const w1 = watched['cycle1'] || {};
     let c1Count = 0;
@@ -1115,8 +1141,6 @@ function recalcSeriesWatchCount(id) {
     }
   }
 
-  // Полный пересчёт: значение всегда отражает число реально завершённых циклов.
-  // Снятие отметок уменьшает счётчик.
   userData.watchCount[id] = maxFull;
 }
 
@@ -1124,7 +1148,6 @@ function getProgress(seriesId) {
   const s = dbCache?.series?.[seriesId]; if (!s?.seasons) return 0;
   const cycles = userData.watched[seriesId] || {};
 
-  // собираем все существующие циклы + активный (на случай, если он пуст и ещё не создан)
   const cycleKeys = Object.keys(cycles).filter(k => /^cycle\d+$/.test(k));
   const activeCyc = userData.activeCycle[seriesId] || 1;
   if (!cycleKeys.includes(`cycle${activeCyc}`)) cycleKeys.push(`cycle${activeCyc}`);
@@ -1163,7 +1186,7 @@ function buildRightHtml(id, year, type, extra = '') {
 }
 
 /* ============================================================
-   Рендер экранов (ГЛАВНЫЙ ФИКС ЗДЕСЬ)
+   Рендер экранов
    ============================================================ */
 function setState(name, opts={}) {
   if(name!=='player') els.frame.src='about:blank';
@@ -1179,7 +1202,7 @@ function setState(name, opts={}) {
   if(name==='library') renderLibrary();
   if(name==='activity') renderActivity();
   if(name==='collections') renderCollections();
-  if(name==='collectionDetail') renderCollectionDetail(); // <--- ИМЕННО ЭТОЙ СТРОКИ НЕ ХВАТАЛО
+  if(name==='collectionDetail') renderCollectionDetail();
   if(name==='catalog') renderCatalog();
 }
 
@@ -1268,7 +1291,6 @@ function renderCollections() {
       if(fi>-1&&ti>-1){ const [m]=userData.collections.splice(fi,1); userData.collections.splice(ti,0,m); await saveUserData(); renderCollections(); }
     };
     
-    // Обычный клик по карточке (сработает, если не тянули за ручку)
     row.onclick = (e) => { 
       if (e.target.closest('.drag-handle')) return; 
       openCollection(col.id); 
@@ -1279,7 +1301,6 @@ function renderCollections() {
 
 function openCollection(id) {
   currentCollectionId = id;
-  // сбрасываем возможный режим поиска, чтобы при следующем открытии не остался открытым поле ввода
   collectionSearchMode = false;
   els.collectionSearch.hidden = true;
   els.collectionSearch.value = '';
@@ -1293,7 +1314,6 @@ async function renderCollectionDetail() {
   els.collectionDetailTitle.textContent = col.name;
   if (!dbCache) try { await loadDatabase(); } catch {}
 
-  // Скрываем тумблеры в режиме добавления; «кол-во» скрываем и для «Планирую посмотреть»
   els.collectionYearBtn.hidden = collectionSearchMode;
   els.collectionCountBtn.hidden = collectionSearchMode || col.id === PLANNED_COL_ID;
 
@@ -1302,7 +1322,6 @@ async function renderCollectionDetail() {
   if (collectionSearchMode) {
     const q = els.collectionSearch.value.trim();
     if (!q) {
-      // пусто, без надписи «Введите название»
       return;
     }
     const matches = findMatches(dbCache || { movies: {}, series: {} }, q);
@@ -1486,7 +1505,6 @@ function showDateTooltip(el, dateStr, onSave) {
       let v = inp.value.trim();
       if (!v) v = null;
       else {
-        // проверяем и формат, и то, что дата реально существует
         if (!(/^\d{4}-\d{2}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) || isNaN(new Date(v).getTime())) { 
           alert('Неверный формат или несуществующая дата.'); 
           return; 
@@ -1494,7 +1512,7 @@ function showDateTooltip(el, dateStr, onSave) {
       }
       onSave(v); close();
     };
-  }; // <--- ВОТ ЭТА СКОБКА БЫЛА ПОТЕРЯНА
+  }; 
 
   const close = () => { tt.remove(); document.removeEventListener('click', outside); };
   const outside = (e) => { if(!tt.contains(e.target)) close(); };
@@ -1506,6 +1524,8 @@ function showDateTooltip(el, dateStr, onSave) {
   tt.style.top = (r.bottom + window.scrollY + 8) + 'px';
   setTimeout(() => document.addEventListener('click', outside), 10);
 }
+
+let dateHoverTimer;
 function attachDateHover(el, getDateFn, saveDateFn) {
   el.addEventListener('mouseenter', () => {
     dateHoverTimer = setTimeout(() => { showDateTooltip(el, getDateFn(), saveDateFn); }, 2000);
@@ -1767,22 +1787,17 @@ async function handleSearch(e) {
   try {
     const db = await loadDatabase();
     
-    // Проверяем, есть ли в базе фильм/сериал, который называется ровно так же (например, "1984")
     const allItems = [...Object.values(db.movies || {}), ...Object.values(db.series || {})];
     const hasExactTitle = allItems.some(it => (it.title || '').toLowerCase() === q.toLowerCase());
     
     let matches = [];
     
     if (hasExactTitle) {
-      // Если есть точное совпадение по названию — ищем по названию (игнорируем поиск по году)
       matches = findMatches(db, q);
     } else if (/^\d{4}$/.test(q)) {
-      // Если ввели 4 цифры и фильма с таким названием нет — ищем по году
       matches = findByYear(db, q);
-      // Если по году ничего нет, на всякий случай проверяем, нет ли цифр в названиях
       if (!matches.length) matches = findMatches(db, q);
     } else {
-      // Обычный текстовый поиск
       matches = findMatches(db, q);
     }
     
@@ -1872,7 +1887,52 @@ async function removeFromCollection(col, it) {
 els.syncBtn.onclick = () => { els.syncModal.hidden = false; updateSyncUI(); };
 els.syncCloseBtn.onclick = () => els.syncModal.hidden = true;
 els.syncOtherSettingsBtn.onclick = () => alert('Другие настройки пока в разработке.');
-els.syncSaveBtn.onclick = async () => { const t = els.syncTokenInput.value.trim(); if(!t) return; syncToken=t; localStorage.setItem(SYNC_TOKEN_KEY,t); syncStatus='syncing'; updateSyncUI(); await pullFromGitHub(); };
+els.syncSaveBtn.onclick = async () => {
+  const t = els.syncTokenInput.value.trim(); 
+  if (!t) return;
+  
+  const oldOwner = localStorage.getItem('df_sync_owner') || DEFAULT_GITHUB_DATA_OWNER;
+  const oldRepo = localStorage.getItem('df_sync_repo') || DEFAULT_GITHUB_DATA_REPO;
+  
+  if (els.syncTargetSelect.value === 'custom') {
+    GITHUB_DATA_OWNER = els.syncOwnerInput.value.trim() || DEFAULT_GITHUB_DATA_OWNER;
+    GITHUB_DATA_REPO = els.syncRepoInput.value.trim() || DEFAULT_GITHUB_DATA_REPO;
+    GITHUB_DATA_PATH = els.syncPathInput.value.trim() || DEFAULT_GITHUB_DATA_PATH;
+    GITHUB_DATA_BRANCH = els.syncBranchInput.value.trim() || DEFAULT_GITHUB_DATA_BRANCH;
+  } else {
+    GITHUB_DATA_OWNER = DEFAULT_GITHUB_DATA_OWNER;
+    GITHUB_DATA_REPO = DEFAULT_GITHUB_DATA_REPO;
+    GITHUB_DATA_PATH = DEFAULT_GITHUB_DATA_PATH;
+    GITHUB_DATA_BRANCH = DEFAULT_GITHUB_DATA_BRANCH;
+  }
+  
+  if ((oldOwner !== GITHUB_DATA_OWNER || oldRepo !== GITHUB_DATA_REPO) && syncToken) {
+    if (!confirm(`Вы меняете репозиторий синхронизации на ${GITHUB_DATA_OWNER}/${GITHUB_DATA_REPO}.\n\nПриложение попытается скачать данные из нового репозитория. Если там есть данные, они заменят текущие. Если репозиторий пуст, ваши текущие данные будут загружены туда.\n\nПродолжить?`)) return;
+  }
+  
+  localStorage.setItem('df_sync_owner', GITHUB_DATA_OWNER);
+  localStorage.setItem('df_sync_repo', GITHUB_DATA_REPO);
+  localStorage.setItem('df_sync_path', GITHUB_DATA_PATH);
+  localStorage.setItem('df_sync_branch', GITHUB_DATA_BRANCH);
+  
+  syncToken = t; 
+  localStorage.setItem(SYNC_TOKEN_KEY, t); 
+  syncStatus = 'syncing'; 
+  updateSyncUI(); 
+  await pullFromGitHub(); 
+};
+
+els.syncTargetSelect.onchange = () => {
+  const isCustom = els.syncTargetSelect.value === 'custom';
+  els.syncCustomFields.style.display = isCustom ? 'flex' : 'none';
+  if (!isCustom) {
+    els.syncOwnerInput.value = DEFAULT_GITHUB_DATA_OWNER;
+    els.syncRepoInput.value = DEFAULT_GITHUB_DATA_REPO;
+    els.syncPathInput.value = DEFAULT_GITHUB_DATA_PATH;
+    els.syncBranchInput.value = DEFAULT_GITHUB_DATA_BRANCH;
+  }
+};
+
 els.syncDisableBtn.onclick = () => { if(!confirm('Отключить?')) return; syncToken=null; localStorage.removeItem(SYNC_TOKEN_KEY); syncStatus='off'; updateSyncUI(); els.syncModal.hidden=true; };
 els.syncNowBtn.onclick = () => pullFromGitHub();
 
@@ -1890,9 +1950,8 @@ els.historyClear.onclick = async () => { if(!confirm('Очистить исто�
 
 document.addEventListener('keydown', e => { 
   if (e.key === 'Escape') {
-    // Если пользователь печатает в текстовом поле, не закрываем экран
     if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-      document.activeElement.blur(); // Просто убираем фокус с поля
+      document.activeElement.blur();
       return;
     }
     goHome(); 
@@ -1926,31 +1985,18 @@ document.addEventListener('keydown', e => {
   setState('idle');
   if(syncToken) pullFromGitHub().catch(()=>{});
 })();
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('PWA: Service Worker зарегистрирован', reg))
-      .catch(err => console.error('PWA: Ошибка регистрации', err));
-  });
-}
-
 </script>
 
-  ...
-  setState('idle');
-  if(syncToken) pullFromGitHub().catch(()=>{});
-})();
-</script>
-
-<!-- ВСТАВЛЯЕМ ВОТ СЮДА -->
+<!-- ==========================================
+     СКРИПТЫ PWA И РАЗБЛОКИРОВКИ ПОВОРОТА
+     ========================================== -->
 <script>
   // Снимаем блокировку ориентации при запуске
   if (screen.orientation && screen.orientation.unlock) {
     screen.orientation.unlock().catch(() => {});
   }
   
-  // Дополнительно: при открытии плеера пытаемся разблокировать ещё раз
+  // Снимаем блокировку при открытии плеера
   const originalPlayItem = window.playItem;
   if (typeof originalPlayItem === 'function') {
     window.playItem = function(...args) {
@@ -1959,6 +2005,15 @@ if ('serviceWorker' in navigator) {
       }
       return originalPlayItem.apply(this, args);
     };
+  }
+
+  // Регистрация Service Worker (для PWA)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('PWA: Service Worker зарегистрирован', reg))
+        .catch(err => console.error('PWA: Ошибка регистрации', err));
+    });
   }
 </script>
 
