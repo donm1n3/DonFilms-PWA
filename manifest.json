@@ -1,5 +1,5 @@
 {
-  "name": "DonFilms — локальная кинотека",
+  "name": "DonFilms",
   "short_name": "DonFilms",
   "description": "Твоя личная кинотека с историей, оценками и сборниками",
   "start_url": "./index.html",
